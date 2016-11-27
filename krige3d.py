@@ -295,6 +295,30 @@ class Krige3d(object):
             mdt = 0
         # Set up discretization points per block
         self._block_discretization()
+        # initialize accumulators
+        nk = 0
+        xk = 0.0
+        vk = 0.0
+        xkmae = 0.0
+        xkmse = 0.0
+        # ubias = self._cova3((self.xdb[0], self.ydb[0], self.zdb[0]),
+        #                     (self.xdb[0], self.ydb[0], self.zdb[0]))
+        self.unbias = self.cmax
+
+    @property
+    def block_covariance(self):
+        if self._block_covariance is None:
+            if self.ndb <= 1:  # point kriging
+                self._block_covariance = self.unbias
+            else:
+                cov = list()
+                for x1, y1 in izip(self.xdb, self.ydb):
+                    for x2, y2 in izip(self.xdb, self.ydb):
+                        cov.append(self.cova2(x1, y1, x2, y2))
+                cov = np.array(cov).reshape((self.ndb, self.ndb))
+                cov[np.diag_indices_from(cov)] -= self.c0
+                self._block_covariance = np.mean(cov)
+        return self._block_covariance
 
     def _create_searcher(self):
         "Help create and initialize the searcher object"
@@ -326,8 +350,8 @@ class Krige3d(object):
         self.nxdis = 1 if self.nxdis < 1 else self.nxdis
         self.nydis = 1 if self.nydis < 1 else self.nydis
         self.nzdis = 1 if self.nzdis < 1 else self.nzdis
-        ndb = self.nxdis * self.nydis * self.nzdis
-        if ndb > self.const.MAXDIS:
+        self.ndb = self.nxdis * self.nydis * self.nzdis
+        if self.ndb > self.const.MAXDIS:
             raise ValueError("Too many discretization points")
         xdis = self.xsiz / max(self.nxdis, 1)
         ydis = self.ysiz / max(self.nydis, 1)
