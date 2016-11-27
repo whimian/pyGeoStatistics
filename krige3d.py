@@ -21,8 +21,7 @@ __author__ = "yuhao"
 
 class Krige3d(object):
     def __init__(self, param_file):
-        Krige3d_const = namedtuple('Krige3d_const', ['PMX', 'MAXNST', 'MAXDT'])
-        self.const = Krige3d_const(999, 4, 9)
+
         self.param_file = param_file
         self._read_params()
         self._check_params()
@@ -41,8 +40,7 @@ class Krige3d(object):
 
         self._2d = False
         self.searcher = None
-
-        self.MAXSB = None
+        self.const = None
 
     def _read_params(self):
         with open(self.param_file) as fin:
@@ -142,11 +140,6 @@ class Krige3d(object):
             raise ValueError("WARNING: iyl=0 and ny>1 !")
         if self.izl <= 0 and self.nz > 1:
             raise ValueError("WARNING: izl=0 and nz>1 !")
-        # check MAXSB
-        if not isinstance(self.MAXSB, list):
-            raise ValueError("SuperBlock Definition should be set with a list")
-        elif len(self.MAXSB) != 3:
-            raise ValueError("SuperBlock Search Definition need 3 elements")
 
         # check idrift
         for item in self.idrift:
@@ -178,8 +171,9 @@ class Krige3d(object):
 
     def _preprocess(self):
         """
-        Calculate needed programing variables from input parameters
+
         """
+        # Calculate needed programing variables from input parameters
         self.radsqd = self.radius_hmax * self.radius_hmax
         self.sanis1 = self.radius_hmin / self.radius_hmax
         self.sanis2 = self.radius_vert / self.radius_hmax
@@ -188,6 +182,33 @@ class Krige3d(object):
                      np.maximum(self.aa_hmax, np.finfo(float).eps)
         self.anis2 = np.array(self.aa_vert) / \
                      np.maximum(self.aa_hmax, np.finfo(float).eps)
+        # calculate dimensional constants
+        krige3d_const = namedtuple('Krige3d_const',
+                                   ['PMX', 'MAXNST', 'MAXDT', 'MAXSB',
+                                    'MAXDIS', 'MAXSAM'])
+        maxsbx = 1
+        if self.nx > 1:
+            maxsbx = int(self.nx/2)
+            if maxsbx > 50:
+                maxsbx = 50
+        maxsby = 1
+        if self.ny > 1:
+            maxsby = int(self.ny/2)
+            if maxsby > 50:
+                maxsby = 50
+        maxsbz = 1
+        if self.nz > 1:
+            maxsbz = int(self.nz/2)
+            if maxsbz > 50:
+                maxsbz = 50
+        self.const = krige3d_const(
+            PMX=999,
+            MAXNST=4,
+            MAXDT=9,
+            MAXSB=(maxsbx, maxsby, maxsbz),
+            MAXDIS=self.nxdis * self.nydis * self.nzdis,
+            MAXSAM=self.ndmax + 1
+            )
 
     def setrot(self):
         """
@@ -289,7 +310,7 @@ class Krige3d(object):
         self.searcher.zsiz = self.zsiz
         # data
         self.searcher.vr = self.vr
-        self.searcher.MAXSB = self.MAXSB
+        self.searcher.MAXSB = self.const.MAXSB
         # rotation matrix
         self.searcher.rotmat = self.rotmat[-1]
         self.searcher.radsqd = self.radsqd
@@ -375,6 +396,7 @@ class Krige3d(object):
                 cova += cmax - self.cc[ist] * (h**(self.aa_hmax[ist]))
             elif self.it[ist] == 5:  # Hole Effect
                 cova += self.cc[ist] * np.cos(h / self.aa_hmax[ist] * np.pi)
+        return cova
 
     def sqdist(self, point1, point2):
         """
