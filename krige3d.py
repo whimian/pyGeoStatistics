@@ -42,6 +42,8 @@ class Krige3d(object):
         self.searcher = None
         self.const = None
 
+        self._cmax = None
+
     def _read_params(self):
         with open(self.param_file) as fin:
             params = json.load(fin)
@@ -337,6 +339,21 @@ class Krige3d(object):
         self.zdb = np.arange(0, self.nzdis, 1) * zdis + \
                    (-0.5 * self.zsiz + 0.5 * zdis)
 
+    @property
+    def cmax(self):
+        '''
+        Calculate the maximum covariance value (used for zero distances and
+        for power model covariance):
+        '''
+        if self._cmax is None:
+            self._cmax = self.c0
+            for ist in xrange(self.nst):
+                if self.it[ist] == 4:
+                    self._cmax += self.const.PMX
+                else:
+                    self._cmax += self.cc[ist]
+        return self._cmax
+
     def _cova3(self, point1, point2):
         """
         INPUT VARIABLES:
@@ -365,18 +382,10 @@ class Krige3d(object):
           cmax             maximum covariance
           cova             covariance between (x1,y1,z1) and (x2,y2,z2)
         """
-        # Calculate the maximum covariance value (used for zero distances and
-        # for power model covariance):
-        cmax = self.c0
-        for ist in xrange(self.nst):
-            if self.it[ist] == 4:
-                cmax += self.const.PMX
-            else:
-                cmax += self.cc[ist]
         # check for 'zero' distance, return cmax if so:
         hsqd = self.sqdist(point1, point2)
         if hsqd < np.finfo(float).eps:
-            cova = cmax
+            cova = self.cmax
             return cova
         # loop over all structures
         cova = 0
@@ -393,7 +402,7 @@ class Krige3d(object):
                         np.exp(-3.0 * (h / self.aa_hmax[ist]) *
                                (h/self.aa_hmax[ist]))
             elif self.it[ist] == 4:  # Power
-                cova += cmax - self.cc[ist] * (h**(self.aa_hmax[ist]))
+                cova += self.cmax - self.cc[ist] * (h**(self.aa_hmax[ist]))
             elif self.it[ist] == 5:  # Hole Effect
                 cova += self.cc[ist] * np.cos(h / self.aa_hmax[ist] * np.pi)
         return cova
