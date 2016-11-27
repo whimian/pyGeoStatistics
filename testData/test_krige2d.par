@@ -1,0 +1,41 @@
+{
+    "a_max": [
+        3715.9
+    ],
+    "a_min": [
+        3715.9
+    ],
+    "azm": [
+        0
+    ],
+    "c0": 0.05,
+    "cc": [
+        0.65
+    ],
+    "datafl": "testData/test.gslib",
+    "dbgfl": "kb2d.dbg",
+    "icolvr": 3,
+    "icolx": 0,
+    "icoly": 1,
+    "idbg": 3,
+    "isk": 0,
+    "it": [
+        1
+    ],
+    "ndmax": 50,
+    "ndmin": 1,
+    "nst": 1,
+    "nx": 98,
+    "nxdis": 1,
+    "ny": 79,
+    "nydis": 1,
+    "outfl": "out.dat",
+    "radius": 4000,
+    "skmean": 14.69588,
+    "tmax": 1e+21,
+    "tmin": -1e+21,
+    "xmn": 100,
+    "xsiz": 200,
+    "ymn": 100,
+    "ysiz": 200
+}
