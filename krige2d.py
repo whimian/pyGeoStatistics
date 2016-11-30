@@ -363,6 +363,7 @@ class Krige2d():
             left[neq-1, :-1] = self.unbias
             left[:-1, neq-1] = self.unbias
             left[-1, -1] = 0
+            right.append(self.unbias)
 
         # Solve the kriging system
         s = None
