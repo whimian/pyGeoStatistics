@@ -20,47 +20,51 @@ from .super_block import SuperBlockSearcher
 __author__ = "yuhao"
 
 class Krige3d(object):
+    """
+    Performing 3d Kriging with super block search
+    """
     def __init__(self, param_file):
-
         self.param_file = param_file
         self._read_params()
         self._check_params()
         self.property_name = None
         self.vr = None
-        self.maxcov = None
         self.rotmat = None
         self.estimation = None
         self.estimation_variance = None
 
         self.xdb = None
         self.ydb = None
-
-        self._block_covariance = None
-        self._unbias = None
+        self.zdb = None
 
         self._2d = False
         self.searcher = None
         self.const = None
 
-        self._cmax = None
+        self._block_covariance = None
+        self._unbias = None
+        self.maxcov = None
+        self._mdt = None
+
+        self.resc = None
 
     def _read_params(self):
         with open(self.param_file) as fin:
             params = json.load(fin)
+            # data file definition
             self.datafl = params['datafl']  #: 'testData/test.gslib',
-
-            self.idhl = None  # ????
-
+            # self.idhl = None  # ????
             self.ixl = params['icolx']  #: 1,
             self.iyl = params['icoly']  #: 2,
             self.izl = params['icolz']
             self.ivrl = params['icolvr']  #: 0,
-            self.iextv = params['icolsec']
-
+            self.iextv = params['icolsec']  # scalar, used for cross-validation
+            # data limits
             self.tmin = params['tmin']  #: -1.0e21,
             self.tmax = params['tmax']  #: 1.0e21,
-
+            # Validation Options: 0:no, 1:crossvalidation, 2:jackknife
             self.koption = params['option']
+            # definition of jackknife data file
             self.jackfl = params['jackfl']
             self.ixlj = params['jicolx']  #: 1,
             self.iylj = params['jicoly']  #: 2,
@@ -71,27 +75,25 @@ class Krige3d(object):
             self.idbg = params['idbg']  #: 3,
             self.dbgfl = params['dbgfl']  #: 'kb2d.dbg',
             self.outfl = params['outfl']  #: 'out.dat',
-
+            # Grid definition
             self.nx = params['nx']  #: 50,
             self.xmn = params['xmn']  #: 0.5,
             self.xsiz = params['xsiz']  #: 1.0,
-
             self.ny = params['ny']  #: 50,
             self.ymn = params['ymn']  #: 0.5,
             self.ysiz = params['ysiz']  #: 1.0,
-
             self.nz = params['nz']  #: 50,
             self.zmn = params['zmn']  #: 0.5,
             self.zsiz = params['zsiz']  #: 1.0,
-
+            # discretization definition
             self.nxdis = params['nxdis']  #: 1,
             self.nydis = params['nydis']  #: 1,
             self.nzdis = params['nzdis']  #: 1,
-
+            # maximum and minimum data points used in kriging
             self.ndmin = params['ndmin']  #: ,
             self.ndmax = params['ndmax']  #: ,
-            # the maximum number to retain from an octant (an octant search
-            # is not used if noct=0
+            # maximum number to retain from an octant
+            # (an octant search is not used if noct=0)
             self.noct = params['noct']
             # search radii
             self.radius_hmax = params['radius_hmax']  # scalar
@@ -101,15 +103,15 @@ class Krige3d(object):
             self.sang1 = params['sang1']  # scalar
             self.sang2 = params['sang2']  # scalar
             self.sang3 = params['sang3']  # scalar
-
+            # kriging type
             self.ktype = params['ikrige']
             self.skmean = params['skmean']
-
-            self.idrift = params['idrift']
-            self.itrend = params['itrend']
+            # external drift definition
+            self.idrift = params['idrift']  # list of boolean
+            self.itrend = params['itrend']  # boolean
             self.extfl = params['secfl']
-            self.iextve = params['iseccol']
-
+            self.iextve = params['iseccol']  # scalar
+            # Vairography definition
             self.nst = params['nst']
             self.c0 = params['c0']
             self.it = params['it']
@@ -122,8 +124,10 @@ class Krige3d(object):
             self.aa_vert = params['aa_vert']
 
     def _check_params(self):
+        # Check search radius
         if self.radius_hmax <= 0:
             raise ValueError("radius_hmax should be larger than zero.")
+        # Check variograms
         if self.nst <= 0:
             raise ValueError("nst must be at least 1.")
         for vtype, a_range in zip(self.it, self.aa_hmax):
@@ -134,18 +138,18 @@ class Krige3d(object):
                     raise ValueError("INVALID power variogram")
                 elif a_range > 2.0:
                     raise ValueError("INVALID power variogram")
+        # Check data file definition
         if self.ktype == 3 and self.iextv <= 0:
             raise ValueError("Must have exteranl variable")
-        if self.ixl <= 0 and self.nx > 1:
+        if self.ixl < 0 and self.nx > 1:
             raise ValueError("WARNING: ixl=0 and nx>1 !")
-        if self.iyl <= 0 and self.ny > 1:
+        if self.iyl < 0 and self.ny > 1:
             raise ValueError("WARNING: iyl=0 and ny>1 !")
-        if self.izl <= 0 and self.nz > 1:
+        if self.izl < 0 and self.nz > 1:
             raise ValueError("WARNING: izl=0 and nz>1 !")
-
-        # check idrift
+        # check Trend term
         for item in self.idrift:
-            if item < 0 or item > 1:
+            if not isinstance(item, bool):
                 raise ValueError("Invalid drift term {}".format(item))
 
     def read_data(self):
@@ -172,22 +176,11 @@ class Krige3d(object):
         self.vr = np.array(data_list, dtype=data_dtype)
 
     def _preprocess(self):
-        """
-
-        """
-        # Calculate needed programing variables from input parameters
-        self.radsqd = self.radius_hmax * self.radius_hmax
-        self.sanis1 = self.radius_hmin / self.radius_hmax
-        self.sanis2 = self.radius_vert / self.radius_hmax
-
-        self.anis1 = np.array(self.aa_hmin) / \
-                     np.maximum(self.aa_hmax, np.finfo(float).eps)
-        self.anis2 = np.array(self.aa_vert) / \
-                     np.maximum(self.aa_hmax, np.finfo(float).eps)
+        """create variables needed before performing kriging"""
         # calculate dimensional constants
         krige3d_const = namedtuple('Krige3d_const',
                                    ['PMX', 'MAXNST', 'MAXDT', 'MAXSB',
-                                    'MAXDIS', 'MAXSAM'])
+                                    'MAXDIS', 'MAXSAM', 'UNEST'])
         maxsbx = 1
         if self.nx > 1:
             maxsbx = int(self.nx/2)
@@ -209,10 +202,30 @@ class Krige3d(object):
             MAXDT=9,
             MAXSB=(maxsbx, maxsby, maxsbz),
             MAXDIS=self.nxdis * self.nydis * self.nzdis,
-            MAXSAM=self.ndmax + 1
+            MAXSAM=self.ndmax + 1,
+            UNEST=np.nan
             )
+        # Calculate needed programing variables from input parameters
+        self.radsqd = self.radius_hmax * self.radius_hmax
+        self.sanis1 = self.radius_hmin / self.radius_hmax
+        self.sanis2 = self.radius_vert / self.radius_hmax
 
-    def setrot(self):
+        self.anis1 = np.array(self.aa_hmin) / \
+                     np.maximum(self.aa_hmax, np.finfo(float).eps)
+        self.anis2 = np.array(self.aa_vert) / \
+                     np.maximum(self.aa_hmax, np.finfo(float).eps)
+
+        # set up for validation, if cross-validation, set jackfl as datafl
+        if self.koption == 1:
+            self.jackfl = self.datafl
+            # self.idhlj = self.idhl
+            self.ixlj = self.ixl
+            self.iylj = self.iyl
+            self.izlj = self.izl
+            self.ivrlj = self.ivrl
+            self.iextvj = self.iextv
+
+    def _set_rotation(self):
         """
         Set up rotation matrix for both anisotropy and searching.
         with self.rotmat being an array of 3*3 rotation matrix, the last matrix
@@ -261,64 +274,415 @@ class Krige3d(object):
         self._preprocess()
         # Set up the rotation/anisotropy matrices needed for variogram
         # and searching
-        self.setrot()
+        self._set_rotation()
         # compute maximum covariance for the rescaling factor:
-        covmax = self.c0[0]
-        for ist in xrange(self.nst):
-            if self.it[ist] == 4:
-                covmax += self.const.PMX
-            else:
-                covmax += self.cc[ist]
+        self._max_covariance()
         # compute rescaling factor:
-        if self.radsqd < 1:
-            resc = 2 * self.radius_hmax / max(covmax, 0.0001)
-        else:
-            resc = (4 * self.radsqd) / max(covmax, 0.0001)
-        if resc <= 0:
-            raise ValueError("rescaling value is wrong, {}".format(resc))
-        resc = 1 / resc
+        self._rescaling()
         # Set up for super block searching:
         self._create_searcher()
-        # compute the number of drift terms, if an external drift is being
-        # considered then it is one more drift term, if SK is being considered
-        # then we will set all drift terms off and mdt to 0.
-        mdt = 1
-        for i in xrange(9):
-            if self.ktype == 0 or self.ktype == 2:
-                self.idrift[i] = 0
-            mdt += self.idrift[i]
-        if self.ktype == 3:  #KED
-            mdt += 1
-        elif self.ktype == 0:  # SK
-            mdt = 0
-        elif self.ktype == 2:  # UK
-            mdt = 0
         # Set up discretization points per block
         self._block_discretization()
-        # initialize accumulators
-        nk = 0
-        xk = 0.0
-        vk = 0.0
-        xkmae = 0.0
-        xkmse = 0.0
-        # ubias = self._cova3((self.xdb[0], self.ydb[0], self.zdb[0]),
-        #                     (self.xdb[0], self.ydb[0], self.zdb[0]))
-        self.unbias = self.cmax
+        # Find unbias value
+        self.unbias = self.maxcov
+
+        # mean values of the drift function
+        self.bv = np.zeros((8,))
+        self.bv[0] = np.mean(self.xdb) * self.resc
+        self.bv[1] = np.mean(self.ydb) * self.resc
+        self.bv[2] = np.mean(self.zdb) * self.resc
+        self.bv[3] = np.mean(self.xdb * self.xdb) * self.resc
+        self.bv[4] = np.mean(self.ydb * self.ydb) * self.resc
+        self.bv[5] = np.mean(self.zdb * self.zdb) * self.resc
+        self.bv[6] = np.mean(self.xdb * self.ydb) * self.resc
+        self.bv[7] = np.mean(self.xdb * self.zdb) * self.resc
+        self.bv[8] = np.mean(self.ydb * self.zdb) * self.resc
+        # report on progress from time to time:
+        nd = self.vr.shape[0]
+        if self.koption == 0:  # kriging
+            nxy = self.nx * self.ny
+            nxyz = self.nx * self.ny * self.nz
+            nloop = nxyz
+            # irepo = max(1, min((nxyz/10), 10000))
+        else:  # Validation
+            nloop = 10000000
+            irepo = max(1, min(nd/10, 10000))
+        print("Start working on the kriging...")
+        # time
+        t1 = time.time()
+        ts = 0
+        percent_od = 0
+        # MAIN LOOP OVER ALL THE BLOCKS IN THE GRID:
+        for index in xrange(nloop):
+            ts_1 = time.time()
+            if self.koption == 0:
+                self.iz = index // nxy
+                self.iy = (index - self.iz * nxy) // self.nx
+                self.ix = index - self.iz * nxy - self.iy * self.nx
+                xloc = self.xmn + self.ix * self.xsiz
+                yloc = self.ymn + self.iy * self.ysiz
+                zloc = self.zmn + self.iz * self.zsiz
+            else:  # crossvalidation or jackknife
+                # read(ljack,*,err=96,end=2) (var(i),i=1,nvarij)
+                var = list()
+                # ddh = 0.0
+                xloc = self.xmn
+                yloc = self.ymn
+                zloc = self.zmn
+                true = self.const.UNEST
+                # secj = self.const.UNEST
+                # if self.idhlj > 0:
+                #     ddh = var[idhlj]
+                if self.ixlj > 0:
+                    xloc = var[self.ixlj]
+                if self.iylj > 0:
+                    yloc = var[self.iylj]
+                if self.izlj > 0:
+                    zloc = var[self.izlj]
+                if self.ivrlj > 0:
+                    true = var[self.ivrlj]
+                if self.iextvj > 0:
+                    self.extest = var[self.iextvj]
+                if true < self.tmin or true >= self.tmax:
+                    true = self.const.UNEST
+            # read in the external drift variable if needed.
+            if self.ktype == 2 or self.ktype == 3:  # non-SK or KED
+                if self.koption == 0:
+                    # read(lext,*) (var(i),i=1,iextve)
+                    var = list()
+                    self.extest = var[self.iextve]  # colocated external value
+                if self.extest < self.tmin or self.extest >= self.tmax:
+                    # est = self.const.UNEST
+                    # estv = self.const.UNEST
+                    self.estimation.append(self.const.UNEST)
+                    self.estimation_variance.append(self.const.UNEST)
+                    continue
+                # rescalling factor for external drift variable
+                self.resce = self.maxcov / max(self.extest, 0.0001)
+            self.searcher.search(xloc, yloc, zloc)
+
+            ts += time.time() - ts_1
+
+            # load nearest data in xa, ya, za, vra, vea
+            xa = list()
+            ya = list()
+            za = list()
+            vra = list()
+            vea = list()  # colocated external drift value
+
+            na = 0
+            for i in xrange(self.searcher.nclose):
+                ind = self.searcher.close_samples[i]
+                accept = True
+                if self.koption != 0 and \
+                    abs(self.vr['x'][ind] - xloc) + \
+                    abs(self.vr['y'][ind] - yloc) + \
+                    abs(self.vr['z'][ind] - zloc) < np.finfo(float).eps:
+                    accept = False
+                # if self.koption != 0 and \
+                #     abs(dh[ind] - ddh) < np.finfo(float).eps:
+                #     accept = False
+                if accept:
+                    if na < self.ndmax:
+                        xa.append(self.vr['x'][ind] - xloc + 0.5*self.xsiz)
+                        ya.append(self.vr['y'][ind] - yloc + 0.5*self.ysiz)
+                        za.append(self.vr['z'][ind] - zloc + 0.5*self.zsiz)
+                        vra.append(self.vr[self.property_name[0]])
+                        vea.append(self.vr[self.property_name[1]])
+                        na += 1
+            # check number of samples found
+            if na < self.ndmin:
+                # est = self.const.UNEST
+                # estv = self.const.UNEST
+                self.estimation.append(self.const.UNEST)
+                self.estimation_variance.append(self.const.UNEST)
+                continue
+            # Test if there are enough samples to estimate all drift terms:
+            if na >= 1 and na <= self.mdt:
+                # if firon:
+                #     firon = False
+                self.estimation.append(self.const.UNEST)
+                self.estimation_variance.append(self.const.UNEST)
+                continue
+            xa = np.array(xa)
+            ya = np.array(ya)
+            za = np.array(za)
+            vra = np.array(vra)
+            vea = np.array(vea)
+            # Enough data, proceed with estimation
+            if na <= 1:
+                est, estv = self._one_sample(xa, ya, za, vra)
+                self.estimation.append(est)
+                self.estimation_variance.append(estv)
+            else:
+                est, estv = self._many_samples(xa, ya, za, vra, vea)
+                self.estimation.append(est)
+                self.estimation_variance.append(estv)
+            # print working percentage
+            percent = np.round(index/nloop*100, decimals=0)
+            dtime = time.time() - t1
+            if percent != percent_od:
+                print("{}% ".format(percent) +\
+                  "."*20 + "{}s elapsed.".format(np.round(dtime, decimals=3)))
+            percent_od = percent
+        print("Search time: {}s".format(ts))
+        self.estimation = np.array(self.estimation)
+        self.estimation_variance = np.array(self.estimation_variance)
+
+    def _rescaling(self):
+        if self.radsqd < 1:
+            self.resc = 2 * self.radius_hmax / max(self.maxcov, 0.0001)
+        else:
+            self.resc = (4 * self.radsqd) / max(self.maxcov, 0.0001)
+        if self.resc <= 0:
+            raise ValueError("rescaling value is wrong, {}".format(self.resc))
+        self.resc = 1 / self.resc
+
+    def _one_sample(self, xa, ya, za, vra):
+        """
+        If only one sample, perform SK or OK
+
+        Parameters
+        ----------
+        xa, ya, za, vra: 1-D ndarray
+        """
+        # Left hand side
+        left = self._cova3((xa[0], ya[0], za[0]), (xa[0], ya[0], za[0]))
+        #Right hand side
+        if self.ndb <= 1:
+            right = self._cova3((xa[0], ya[0], za[0]), (xa[0], ya[0], za[0]))
+        else:
+            right = 0
+            for i in xrange(self.ndb):
+                cov = self._cova3((xa[0], ya[0], za[0]), (xa[i], ya[i], za[i]))
+                right += cov
+                dx = xa[0] - xa[i]
+                dy = ya[0] - ya[i]
+                dz = za[0] - za[i]
+                if dx*dx + dy*dy + dz*dz < np.finfo(float).eps:
+                    right -= self.c0
+            right /= self.ndb
+        if self.ktype == 2: # non-sationary SK
+            self.skmean = self.extest
+        if self.ktype == 0 or self.ktype == 2: # SK
+            # solve for lambda
+            s = right / self.block_covariance
+            est = s * vra[0] + (1-s) * self.skmean
+            estv = self.block_covariance - s * right
+        else:  # OK
+            est = vra[0]
+            estv = self.block_covariance - 2 * right + left
+        return est, estv
+
+    def _many_samples(self, xa, ya, za, vra, vea):
+        """
+        More than one sample
+
+        Parameters
+        ----------
+        xa, ya, za, vra: 1-D ndarray
+        """
+        na = self.vr.shape[0]
+        neq = self.mdt + na  # number of equations
+        # Left Hand Side
+        # first = False
+        left = np.full((neq, neq), np.nan)
+        # fill the kriging matrix:
+        j_list, i_list = np.meshgrid(np.arange(0, na, 1, dtype=np.int),
+                                     np.arange(0, na, 1, dtype=np.int))
+        for i, j in zip(i_list.flat, j_list.flat):
+            if np.isnan(left[j, i]):
+                left[i, j] = self._cova3((xa[i], ya[i], za[i]),
+                                         (xa[j], ya[j], za[j]))
+            else:
+                left[i, j] = left[j, i]
+        if neq > na:  # fill for OK
+            left[na, :na] = self.unbias
+            left[:na, na] = self.unbias
+            left[na, na] = 0
+
+        # Right Hand Side
+        right = list()
+        for i in xrange(na):
+            if self.ndb <= 1:
+                cb = self._cova3((xa[i], ya[i], za[i]),
+                                 (self.xdb[0], self.ydb[0], self.zdb[0]))
+            else:
+                cb = 0
+                for j in xrange(self.ndb):
+                    cov = self._cova3((xa[i], ya[i], za[i]),
+                                      (self.xdb[j], self.ydb[j], self.zdb[j]))
+                    cb += cov
+                    dx = xa[i] - xa[j]
+                    dy = ya[i] - ya[j]
+                    dz = za[i] - za[j]
+                    if dx*dx + dy*dy + dz*dz < np.finfo(float).eps:
+                        cb -= self.c0
+            cb /= self.ndb
+            right.append(cb)
+        if neq > na:
+            right.append(self.unbias)
+
+        # Add the additional unbiasedness constraints:
+        im = na + 1
+        # First drift term (linear in 'x')
+        if self.idrift[0] is True:
+            im += 1
+            left[im, :im] = xa * self.resc
+            left[:im, im] = xa * self.resc
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.bv[0])
+        # Second drift term (linear in 'y'):
+        if self.idrift[1] is True:
+            im += 1
+            left[im, :im] = ya * self.resc
+            left[:im, im] = ya * self.resc
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.bv[1])
+        # Third drift term (linear in 'z')
+        if self.idrift[2] is True:
+            im += 1
+            left[im, :im] = za * self.resc
+            left[:im, im] = za * self.resc
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.bv[2])
+        # Fourth drift term (quadratic in 'x')
+        if self.idrift[3] is True:
+            im += 1
+            left[im, :im] = xa * xa * self.resc
+            left[:im, im] = xa * xa * self.resc
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.bv[3])
+        # Fifth drift term (quadratic in 'y')
+        if self.idrift[4] is True:
+            im += 1
+            left[im, :im] = ya * ya * self.resc
+            left[:im, im] = ya * ya * self.resc
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.bv[4])
+        # Sixth drift term (quadratic in 'z')
+        if self.idrift[5] is True:
+            im += 1
+            left[im, :im] = za * za * self.resc
+            left[:im, im] = za * za * self.resc
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.bv[5])
+        # Seventh drift term (quadratic in 'xy')
+        if self.idrift[6] is True:
+            im += 1
+            left[im, :im] = xa * ya * self.resc
+            left[:im, im] = xa * ya * self.resc
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.bv[6])
+        # Eighth drift term (quadratic in 'xz')
+        if self.idrift[7] is True:
+            im += 1
+            left[im, :im] = xa * za * self.resc
+            left[:im, im] = xa * za * self.resc
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.bv[7])
+        # Ninth drift term (quadratic in 'yz')
+        if self.idrift[8] is True:
+            im += 1
+            left[im, :im] = ya * za * self.resc
+            left[:im, im] = ya * za * self.resc
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.bv[8])
+
+        # External drift term
+        if self.ktype == 3:  # KED
+            im += 1
+            left[im, :im] = vea * self.resce
+            left[:im, im] = vea * self.resce
+            left[im, im:] = 0
+            left[im:, im] = 0
+            right.append(self.extest * self.resce)
+
+        right = np.array(right)
+        # if estimating the trend then reset the right terms all to 0.0
+        if self.itrend == True:
+            right = 0
+        # write out the kriging matrix if seriously debugging:
+
+        # Solve the kriging system
+        s = None
+        try:
+            s = linalg.solve(left, right)
+        except linalg.LinAlgError as inst:
+            print("Warning kt3d: Singular matrix " + \
+                    "{}, {}, {}".format(self.ix, self.iy, self.iz))
+            return np.nan, np.nan
+        # Estimate and estimation variance
+        if self.ktype == 2:  # non-stationary SK
+            self.skmean = self.extest
+        # Variance
+        estv = self.block_covariance - np.sum(s * right)
+        # Estimate
+        est = 0
+        if self.ktype == 0:  # SK
+            est = s[:na] * (vra[:na] - self.skmean)
+        elif self.ktype == 2:  # non-stationary SK
+            est = s[:na] * (vra - vea)
+        else:  # OK, KED
+            est = s[:na] * vra
+
+        if self.ktype == 0 or self.ktype == 2:  # SK or non-stationary SK
+            est += self.skmean
+
+        return est, estv
 
     @property
     def block_covariance(self):
+        "return average covariance within block"
         if self._block_covariance is None:
             if self.ndb <= 1:  # point kriging
                 self._block_covariance = self.unbias
             else:
                 cov = list()
-                for x1, y1 in izip(self.xdb, self.ydb):
-                    for x2, y2 in izip(self.xdb, self.ydb):
-                        cov.append(self.cova2(x1, y1, x2, y2))
+                for x1, y1, z1 in izip(self.xdb, self.ydb, self.zdb):
+                    for x2, y2, z2 in izip(self.xdb, self.ydb, self.zdb):
+                        cov.append(self._cova3((x1, y1, z1), (x2, y2, z2)))
                 cov = np.array(cov).reshape((self.ndb, self.ndb))
                 cov[np.diag_indices_from(cov)] -= self.c0
                 self._block_covariance = np.mean(cov)
         return self._block_covariance
+
+    @property
+    def mdt(self):
+        """
+        The number of drift terms.
+
+        If an external drift is being considered then there is one more
+        drift term other than those less than nine drift terms
+
+        And if SK is being considered,
+        then we will set all drift terms off and mdt to 0.
+
+        The property is used to determine how many extra rows/columns there
+        are in the kriging matrix.
+        """
+        if self._mdt is None:
+            self._mdt = 1
+            for i in xrange(9):
+                if self.ktype == 0 or self.ktype == 2:
+                    self.idrift[i] = 0
+                self._mdt += self.idrift[i]
+            if self.ktype == 3:  #KED
+                self._mdt += 1
+            elif self.ktype == 0:  # SK
+                self._mdt = 0
+            elif self.ktype == 2:  # non-stationary SK
+                self._mdt = 0
+        return self._mdt
 
     def _create_searcher(self):
         "Help create and initialize the searcher object"
@@ -363,53 +727,36 @@ class Krige3d(object):
         self.zdb = np.arange(0, self.nzdis, 1) * zdis + \
                    (-0.5 * self.zsiz + 0.5 * zdis)
 
-    @property
-    def cmax(self):
+
+    def _max_covariance(self):
         '''
         Calculate the maximum covariance value (used for zero distances and
         for power model covariance):
         '''
-        if self._cmax is None:
-            self._cmax = self.c0
-            for ist in xrange(self.nst):
-                if self.it[ist] == 4:
-                    self._cmax += self.const.PMX
-                else:
-                    self._cmax += self.cc[ist]
-        return self._cmax
+        self.maxcov = self.c0
+        for ist in xrange(self.nst):
+            if self.it[ist] == 4:
+                self.maxcov += self.const.PMX
+            else:
+                self.maxcov += self.cc[ist]
+
 
     def _cova3(self, point1, point2):
         """
-        INPUT VARIABLES:
-          x1,y1,z1         coordinates of first point
-          x2,y2,z2         coordinates of second point
-          nst(ivarg)       number of nested structures (maximum of 4)
-          ivarg            variogram number (set to 1 unless doing cokriging
-                              or indicator kriging)
-          MAXNST           size of variogram parameter arrays
-          c0(ivarg)        isotropic nugget constant
-          it(i)            type of each nested structure:
-                             1. spherical model of range a;
-                             2. exponential model of parameter a;
-                                  i.e. practical range is 3a
-                             3. gaussian model of parameter a;
-                                  i.e. practical range is a*sqrt(3)
-                             4. power model of power a (a must be gt. 0  and
-                                  lt. 2).  if linear model, a=1,c=slope.
-                             5. hole effect model
-          cc(i)            multiplicative factor of each nested structure.
-                             (sill-c0) for spherical, exponential,and gaussian
-                             slope for linear model.
-          aa(i)            parameter "a" of each nested structure.
+        Parameters
+        ----------
+        point1, point2: tuple of 3
+            coordinates of two points
 
-        OUTPUT VARIABLES:
-          cmax             maximum covariance
-          cova             covariance between (x1,y1,z1) and (x2,y2,z2)
+        Returns
+        -------
+        cova: scalar
+            covariance between (x1,y1,z1) and (x2,y2,z2)
         """
-        # check for 'zero' distance, return cmax if so:
+        # check for 'zero' distance, return maxcov if so:
         hsqd = self.sqdist(point1, point2)
         if hsqd < np.finfo(float).eps:
-            cova = self.cmax
+            cova = self.maxcov
             return cova
         # loop over all structures
         cova = 0
@@ -426,7 +773,7 @@ class Krige3d(object):
                         np.exp(-3.0 * (h / self.aa_hmax[ist]) *
                                (h/self.aa_hmax[ist]))
             elif self.it[ist] == 4:  # Power
-                cova += self.cmax - self.cc[ist] * (h**(self.aa_hmax[ist]))
+                cova += self.maxcov - self.cc[ist] * (h**(self.aa_hmax[ist]))
             elif self.it[ist] == 5:  # Hole Effect
                 cova += self.cc[ist] * np.cos(h / self.aa_hmax[ist] * np.pi)
         return cova
