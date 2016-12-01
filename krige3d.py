@@ -7,7 +7,7 @@ a polynomial trend model (KT) with up to nine monomial terms.
 
 Created on Tue Nov 22 2016
 """
-from __future__ import division, print_function
+from __future__ import division, print_function, absolute_import
 import json
 from itertools import izip
 import time
@@ -15,7 +15,7 @@ from collections import namedtuple
 import numpy as np
 from scipy import linalg
 import matplotlib.pyplot as plt
-from .super_block import SuperBlockSearcher
+from super_block import SuperBlockSearcher
 
 __author__ = "yuhao"
 
@@ -68,7 +68,7 @@ class Krige3d(object):
             self.jackfl = params['jackfl']
             self.ixlj = params['jicolx']  #: 1,
             self.iylj = params['jicoly']  #: 2,
-            self.izlj = params['jicoloz']
+            self.izlj = params['jicolz']
             self.ivrlj = params['jicolvr']  #: 0,
             self.iextvj = params['jicolsec']
 
@@ -287,7 +287,7 @@ class Krige3d(object):
         self.unbias = self.maxcov
 
         # mean values of the drift function
-        self.bv = np.zeros((8,))
+        self.bv = np.zeros((9,))
         self.bv[0] = np.mean(self.xdb) * self.resc
         self.bv[1] = np.mean(self.ydb) * self.resc
         self.bv[2] = np.mean(self.zdb) * self.resc
@@ -312,6 +312,9 @@ class Krige3d(object):
         t1 = time.time()
         ts = 0
         percent_od = 0
+
+        self.estimation = np.full((nloop,), np.nan)
+        self.estimation_variance = np.full((nloop,), np.nan)
         # MAIN LOOP OVER ALL THE BLOCKS IN THE GRID:
         for index in xrange(nloop):
             ts_1 = time.time()
@@ -354,15 +357,17 @@ class Krige3d(object):
                 if self.extest < self.tmin or self.extest >= self.tmax:
                     # est = self.const.UNEST
                     # estv = self.const.UNEST
-                    self.estimation.append(self.const.UNEST)
-                    self.estimation_variance.append(self.const.UNEST)
+                    # self.estimation.append(self.const.UNEST)
+                    # self.estimation_variance.append(self.const.UNEST)
+                    self.estimation[index] = self.const.UNEST
+                    self.estimation_variance[index] = self.const.UNEST
                     continue
                 # rescalling factor for external drift variable
                 self.resce = self.maxcov / max(self.extest, 0.0001)
+            # Search for proximity data
             self.searcher.search(xloc, yloc, zloc)
 
             ts += time.time() - ts_1
-
             # load nearest data in xa, ya, za, vra, vea
             xa = list()
             ya = list()
@@ -394,15 +399,19 @@ class Krige3d(object):
             if na < self.ndmin:
                 # est = self.const.UNEST
                 # estv = self.const.UNEST
-                self.estimation.append(self.const.UNEST)
-                self.estimation_variance.append(self.const.UNEST)
+                # self.estimation.append(self.const.UNEST)
+                # self.estimation_variance.append(self.const.UNEST)
+                self.estimation[index] = self.const.UNEST
+                self.estimation_variance[index] = self.const.UNEST
                 continue
             # Test if there are enough samples to estimate all drift terms:
             if na >= 1 and na <= self.mdt:
                 # if firon:
                 #     firon = False
-                self.estimation.append(self.const.UNEST)
-                self.estimation_variance.append(self.const.UNEST)
+                # self.estimation.append(self.const.UNEST)
+                # self.estimation_variance.append(self.const.UNEST)
+                self.estimation[index] = self.const.UNEST
+                self.estimation_variance[index] = self.const.UNEST
                 continue
             xa = np.array(xa)
             ya = np.array(ya)
@@ -412,12 +421,16 @@ class Krige3d(object):
             # Enough data, proceed with estimation
             if na <= 1:
                 est, estv = self._one_sample(xa, ya, za, vra)
-                self.estimation.append(est)
-                self.estimation_variance.append(estv)
+                # self.estimation.append(est)
+                # self.estimation_variance.append(estv)
+                self.estimation[index] = est
+                self.estimation_variance[index] = estv
             else:
                 est, estv = self._many_samples(xa, ya, za, vra, vea)
-                self.estimation.append(est)
-                self.estimation_variance.append(estv)
+                # self.estimation.append(est)
+                # self.estimation_variance.append(estv)
+                self.estimation[index] = est
+                self.estimation_variance[index] = estv
             # print working percentage
             percent = np.round(index/nloop*100, decimals=0)
             dtime = time.time() - t1
@@ -426,8 +439,8 @@ class Krige3d(object):
                   "."*20 + "{}s elapsed.".format(np.round(dtime, decimals=3)))
             percent_od = percent
         print("Search time: {}s".format(ts))
-        self.estimation = np.array(self.estimation)
-        self.estimation_variance = np.array(self.estimation_variance)
+        # self.estimation = np.array(self.estimation)
+        # self.estimation_variance = np.array(self.estimation_variance)
 
     def _rescaling(self):
         if self.radsqd < 1:
@@ -830,11 +843,9 @@ class Krige3d(object):
     def view3d(self):
         "View 3D data using mayavi"
         pass
-
-if __name__ == "__main__":
+    
+if __name__ == '__main__':
     test_krige3d = Krige3d("testData/test_krige3d.par")
     test_krige3d.read_data()
     test_krige3d.kt3d()
-    test_krige3d.view2d()
-    test_krige3d.view3d()
-
+    
