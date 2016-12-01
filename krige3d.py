@@ -317,7 +317,6 @@ class Krige3d(object):
         self.estimation_variance = np.full((nloop,), np.nan)
         # MAIN LOOP OVER ALL THE BLOCKS IN THE GRID:
         for index in xrange(nloop):
-            ts_1 = time.time()
             if self.koption == 0:
                 self.iz = index // nxy
                 self.iy = (index - self.iz * nxy) // self.nx
@@ -365,8 +364,8 @@ class Krige3d(object):
                 # rescalling factor for external drift variable
                 self.resce = self.maxcov / max(self.extest, 0.0001)
             # Search for proximity data
+            ts_1 = time.time()
             self.searcher.search(xloc, yloc, zloc)
-
             ts += time.time() - ts_1
             # load nearest data in xa, ya, za, vra, vea
             xa = list()
@@ -392,8 +391,9 @@ class Krige3d(object):
                         xa.append(self.vr['x'][ind] - xloc + 0.5*self.xsiz)
                         ya.append(self.vr['y'][ind] - yloc + 0.5*self.ysiz)
                         za.append(self.vr['z'][ind] - zloc + 0.5*self.zsiz)
-                        vra.append(self.vr[self.property_name[0]])
-                        vea.append(self.vr[self.property_name[1]])
+                        vra.append(self.vr[self.property_name[0]][ind])
+                        if self.ktype == 3:  # KED
+                            vea.append(self.vr[self.property_name[1]])
                         na += 1
             # check number of samples found
             if na < self.ndmin:
@@ -408,8 +408,6 @@ class Krige3d(object):
             if na >= 1 and na <= self.mdt:
                 # if firon:
                 #     firon = False
-                # self.estimation.append(self.const.UNEST)
-                # self.estimation_variance.append(self.const.UNEST)
                 self.estimation[index] = self.const.UNEST
                 self.estimation_variance[index] = self.const.UNEST
                 continue
@@ -421,14 +419,10 @@ class Krige3d(object):
             # Enough data, proceed with estimation
             if na <= 1:
                 est, estv = self._one_sample(xa, ya, za, vra)
-                # self.estimation.append(est)
-                # self.estimation_variance.append(estv)
                 self.estimation[index] = est
                 self.estimation_variance[index] = estv
             else:
                 est, estv = self._many_samples(xa, ya, za, vra, vea)
-                # self.estimation.append(est)
-                # self.estimation_variance.append(estv)
                 self.estimation[index] = est
                 self.estimation_variance[index] = estv
             # print working percentage
@@ -439,8 +433,6 @@ class Krige3d(object):
                   "."*20 + "{}s elapsed.".format(np.round(dtime, decimals=3)))
             percent_od = percent
         print("Search time: {}s".format(ts))
-        # self.estimation = np.array(self.estimation)
-        # self.estimation_variance = np.array(self.estimation_variance)
 
     def _rescaling(self):
         if self.radsqd < 1:
@@ -495,7 +487,7 @@ class Krige3d(object):
         ----------
         xa, ya, za, vra: 1-D ndarray
         """
-        na = self.vr.shape[0]
+        na = len(xa)
         neq = self.mdt + na  # number of equations
         # Left Hand Side
         # first = False
@@ -642,11 +634,11 @@ class Krige3d(object):
         # Estimate
         est = 0
         if self.ktype == 0:  # SK
-            est = s[:na] * (vra[:na] - self.skmean)
+            est = np.sum(s[:na] * (vra[:na] - self.skmean))
         elif self.ktype == 2:  # non-stationary SK
-            est = s[:na] * (vra - vea)
+            est = np.sum(s[:na] * (vra - vea))
         else:  # OK, KED
-            est = s[:na] * vra
+            est = np.sum(s[:na] * vra)
 
         if self.ktype == 0 or self.ktype == 2:  # SK or non-stationary SK
             est += self.skmean
@@ -797,6 +789,8 @@ class Krige3d(object):
         given the coordinates of each point and a definition of the
         anisotropy.
 
+        This method only consider a single anisotropy senario.
+
         Parameters
         ----------
         point1 : tuple
@@ -815,9 +809,9 @@ class Krige3d(object):
         dz = point1[2] - point2[2]
         sqdist = 0.0
         for i in xrange(3):
-            cont = self.rotmat[i, 0] * dx + \
-                   self.rotmat[i, 1] * dy + \
-                   self.rotmat[i, 2] * dz
+            cont = self.rotmat[0][i, 0] * dx + \
+                   self.rotmat[0][i, 1] * dy + \
+                   self.rotmat[0][i, 2] * dz
             sqdist += cont * cont
         return sqdist
 
@@ -827,7 +821,8 @@ class Krige3d(object):
             print("3D data, use view3d() instead.")
         else:
             fig, ax = plt.subplots()
-            im = ax.imshow(self.estimation.T, interpolation='nearest',
+            im = ax.imshow(self.estimation.reshape(self.ny, self.nx),
+                           interpolation='nearest',
                            origin='lower',
                            extent=[self.xmn,
                                    self.xmn + (self.nx - 1)*self.xsiz,
@@ -843,9 +838,10 @@ class Krige3d(object):
     def view3d(self):
         "View 3D data using mayavi"
         pass
-    
+
 if __name__ == '__main__':
     test_krige3d = Krige3d("testData/test_krige3d.par")
     test_krige3d.read_data()
     test_krige3d.kt3d()
-    
+    test_krige3d.view2d()
+
