@@ -5,7 +5,7 @@ class for performing Super Block Search
 Created on Tue Nov 22 2016
 """
 from __future__ import division, print_function
-from itertools import izip
+from itertools import izip, product
 import numpy as np
 
 
@@ -126,7 +126,7 @@ class SuperBlockSearcher(object):
         sort_index = np.argsort(temp)
         self.vr = self.vr[sort_index]
         # set up nisb
-        self.nisb = np.cumsum(self.nisb)
+        self.nisb = np.cumsum(self.nisb, dtype=np.int)
 
     def pickup(self):
         """
@@ -141,17 +141,17 @@ class SuperBlockSearcher(object):
         self.ixsbtosr = list()
         self.iysbtosr = list()
         self.izsbtosr = list()
-        for i, j, k in izip(xrange(-(self.nxsup-1), self.nxsup),
-                            xrange(-(self.nysup-1), self.nysup),
-                            xrange(-(self.nzsup-1), self.nzsup)):
+        for i, j, k in product(xrange(-(self.nxsup-1), self.nxsup),
+                               xrange(-(self.nysup-1), self.nysup),
+                               xrange(-(self.nzsup-1), self.nzsup)):
             xo = i * self.xsizsup
             yo = j * self.ysizsup
             zo = k * self.zsizsup
             shortest = np.finfo(float).max
-            for i1, j1, k1 in izip(xrange(-1, 2),
-                                   xrange(-1, 2), xrange(-1, 2)):
-                for i2, j2, k2 in izip(xrange(-1, 2),
-                                       xrange(-1, 2), xrange(-1, 2)):
+            for i1, j1, k1 in product(xrange(-1, 2),
+                                      xrange(-1, 2), xrange(-1, 2)):
+                for i2, j2, k2 in product(xrange(-1, 2),
+                                          xrange(-1, 2), xrange(-1, 2)):
                     if i1 != 0 and j1 != 0 and k1 != 0 and\
                             i2 != 0 and j2 != 0 and k2 != 0:
                         xdis = (i1 - i2) * 0.5 * self.xsizsup + xo
@@ -159,7 +159,7 @@ class SuperBlockSearcher(object):
                         zdis = (k1 - k2) * 0.5 * self.zsizsup + zo
                         hsqd = self.sqdist((0, 0, 0), (xdis, ydis, zdis))
                         shortest = hsqd if hsqd < shortest else shortest
-            if shortest < self.radsqd:
+            if shortest <= self.radsqd:
                 self.nsbtosr += 1
                 self.ixsbtosr.append(i)
                 self.iysbtosr.append(j)
@@ -209,6 +209,8 @@ class SuperBlockSearcher(object):
                 distance.append(i)
                 i += 1
         # sort nearby samples by distance
+        distance =np.array(distance)
+        self.close_samples = np.array(self.close_samples)
         sort_index = np.argsort(distance)
         self.close_samples = self.close_samples[sort_index]
         if self.noct <= 0:
