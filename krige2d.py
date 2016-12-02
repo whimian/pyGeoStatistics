@@ -9,7 +9,7 @@ import json
 import numpy as np
 from scipy import linalg
 import matplotlib.pyplot as plt
-from itertools import izip
+from itertools import izip, product
 import time
 
 __author__ = "yuhao"
@@ -331,9 +331,10 @@ class Krige2d():
 
         # Establish left hand side covariance matrix:
         left = np.full((neq, neq), np.nan)
-        j_list, i_list = np.meshgrid(np.arange(0, na, 1, dtype=np.int),
-                                     np.arange(0, na, 1, dtype=np.int))
-        for i, j in zip(i_list.flat, j_list.flat):
+        # j_list, i_list = np.meshgrid(np.arange(0, na, 1, dtype=np.int),
+        #                              np.arange(0, na, 1, dtype=np.int))
+        # for i, j in zip(i_list.flat, j_list.flat):
+        for i, j in product(xrange(na), xrange(na)):
             if np.isnan(left[j, i]):
                 left[i, j] = self.cova2(xa[i], ya[i], xa[j], ya[j])
             else:
@@ -390,10 +391,6 @@ class Krige2d():
             print("3D data, use view3d() instead.")
         else:
             fig, ax = plt.subplots()
-        #    abscissa = np.arange(0, self.nx, 1)*self.xsiz + self.xmn
-        #    ordinate = np.arange(0, self.ny, 1)*self.ysiz + self.ymn
-        #    ordinate, abscissa = np.meshgrid(ordinate, abscissa)
-        #    contour = ax.contourf(abscissa, ordinate, self.estimation)
             im = ax.imshow(self.estimation.T, interpolation='nearest',
                            origin='lower',
                            extent=[self.xmn,
