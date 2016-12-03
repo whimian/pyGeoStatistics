@@ -118,7 +118,7 @@ class Krige2d():
             else:
                 self.maxcov += contri
 
-    def cova2(self, x1, y1, x2, y2):
+    def _cova2(self, x1, y1, x2, y2):
         "calculte covariance using provided variogram model"
         PMX = 9999.0  # max value used for power model
         dx = x2 - x1
@@ -127,7 +127,7 @@ class Krige2d():
         if (dx*dx + dy*dy) < np.finfo("float").eps:
             return self.maxcov
         # for non-zero distance
-        cova2 = 0.0
+        cova = 0.0
         for iss in xrange(self.nst):
             dx1 = dx*self.rotmat[0, iss] + dy*self.rotmat[1, iss]
             dy1 = (dx*self.rotmat[2, iss] + dy*self.rotmat[3, iss]) / \
@@ -136,15 +136,15 @@ class Krige2d():
             if self.it[iss] == 1:  # spherical model
                 hr = h/self.a_max[iss]
                 if hr < 1:
-                    cova2 += self.cc[iss] * (1 - hr * (1.5 - 0.5 * hr * hr))
+                    cova += self.cc[iss] * (1 - hr * (1.5 - 0.5 * hr * hr))
             elif self.it[iss] == 2:  # exponential model
-                cova2 += self.cc[iss]*np.exp(-3.0*h/self.a_max[iss])
+                cova += self.cc[iss]*np.exp(-3.0*h/self.a_max[iss])
             elif self.it[iss] == 3:  # gaussian model
-                cova2 += self.cc*np.exp(-3.0 * h * h / \
+                cova += self.cc*np.exp(-3.0 * h * h / \
                                         (self.a_max[iss] * self.a_max[iss]))
             elif self.it[iss] == 4:  # power model
-                cova2 += PMX - self.cc[iss]*(h**(self.a_max[iss]))
-        return cova2
+                cova += PMX - self.cc[iss]*(h**(self.a_max[iss]))
+        return cova
 
     def _block_discretization(self):
         """
@@ -166,7 +166,7 @@ class Krige2d():
     def unbias(self):
         "the unbiasedness constraint"
         if self._unbias is None:
-            self._unbias = self.cova2(self.xdb[0], self.ydb[0],
+            self._unbias = self._cova2(self.xdb[0], self.ydb[0],
                                       self.xdb[0], self.ydb[0])
         return self._unbias
 
@@ -181,7 +181,7 @@ class Krige2d():
                 cov = list()
                 for x1, y1 in izip(self.xdb, self.ydb):
                     for x2, y2 in izip(self.xdb, self.ydb):
-                        cov.append(self.cova2(x1, y1, x2, y2))
+                        cov.append(self._cova2(x1, y1, x2, y2))
                 cov = np.array(cov).reshape((self.ndb, self.ndb))
                 cov[np.diag_indices_from(cov)] -= self.c0
                 self._block_covariance = np.mean(cov)
@@ -203,7 +203,7 @@ class Krige2d():
 
     def kd2d(self):
         self._preprocess()
-
+        print("Start kriging...")
         # For each target point on the grid
         xloc_temp = np.arange(self.nx) * self.xsiz + self.xmn
         yloc_temp = np.arange(self.ny) * self.ysiz + self.ymn
@@ -250,7 +250,8 @@ class Krige2d():
                 print("{}% ".format(percent) +\
                   "."*20 + "{}s elapsed.".format(np.round(dtime, decimals=3)))
             percent_od = percent
-        print("Search time: {}s".format(ts))
+        print("Kriging finished.")
+        print("Time used for searching: {}s".format(ts))
         self.estimation = np.array(self.estimation).reshape((self.nx, self.ny))
         self.estimation_variance = np.array(
             self.estimation_variance).reshape((self.nx, self.ny))
@@ -290,18 +291,18 @@ class Krige2d():
 
     def _one_sample(self, xloc, yloc, xa, ya, vra):
         # Left Hand Side Covariance:
-        left = self.cova2(xa[0], ya[0], xa[0], ya[0])
+        left = self._cova2(xa[0], ya[0], xa[0], ya[0])
 
         # Right Hand Side Covariance:
         xx = xa[0] - xloc
         yy = ya[0] - yloc
         if not self.block_kriging:  # point kriging
-            right = self.cova2(xx, yy, self.xdb[0], self.ydb[0])
+            right = self._cova2(xx, yy, self.xdb[0], self.ydb[0])
         else:  # block kriging
             right = 0.0
             # cb_list = list()
             for i in xrange(self.ndb):
-                right = self.cova2(xx, yy, self.xdb[i], self.ydb[i])
+                right = self._cova2(xx, yy, self.xdb[i], self.ydb[i])
                 dx = xx - self.xdb[i]
                 dy = yy - self.ydb[i]
                 if dx*dx + dy*dy < np.finfo('float').eps:
@@ -333,7 +334,7 @@ class Krige2d():
         left = np.full((neq, neq), np.nan)
         for i, j in product(xrange(na), xrange(na)):
             if np.isnan(left[j, i]):
-                left[i, j] = self.cova2(xa[i], ya[i], xa[j], ya[j])
+                left[i, j] = self._cova2(xa[i], ya[i], xa[j], ya[j])
             else:
                 left[i, j] = left[j, i]
 
@@ -344,11 +345,11 @@ class Krige2d():
             xx = xa[j] - xloc
             yy = ya[j] - yloc
             if not self.block_kriging:
-                cb = self.cova2(xx, yy, self.xdb[0], self.ydb[0])
+                cb = self._cova2(xx, yy, self.xdb[0], self.ydb[0])
             else:
                 cb = 0.0
                 for i in xrange(self.ndb):
-                    cb += self.cova2(xx, yy, self.xdb[i], self.ydb[i])
+                    cb += self._cova2(xx, yy, self.xdb[i], self.ydb[i])
                     dx = xx - self.xdb[i]
                     dy = yy - self.ydb[i]
                     if dx*dx + dy*dy < np.finfo('float').eps:
