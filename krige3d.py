@@ -759,13 +759,15 @@ class Krige3d(object):
             covariance between (x1,y1,z1) and (x2,y2,z2)
         """
         # check for 'zero' distance, return maxcov if so:
-        hsqd = self.sqdist(point1, point2)
+        hsqd = self.sqdist(point1, point2, self.rotmat[0])
         if hsqd < np.finfo(float).eps:
             cova = self.maxcov
             return cova
         # loop over all structures
         cova = 0
         for ist in xrange(self.nst):
+            if ist != 1:
+                hsqd = self.sqdist(point1, point2, self.rotmat[ist])
             h = np.sqrt(hsqd)
             if self.it[ist] == 1:  # Spherical
                 hr = h / self.aa_hmax[ist]
@@ -783,7 +785,7 @@ class Krige3d(object):
                 cova += self.cc[ist] * np.cos(h / self.aa_hmax[ist] * np.pi)
         return cova
 
-    def sqdist(self, point1, point2):
+    def sqdist(self, point1, point2, rotmat):
         """
         This routine calculates the anisotropic distance between two points
         given the coordinates of each point and a definition of the
@@ -797,6 +799,8 @@ class Krige3d(object):
             Coordinates of first point (x1,y1,z1)
         point2 : tuple
             Coordinates of second point (x2,y2,z2)
+        rotmat : 3*3 ndarray
+            matrix of rotation for this structure
 
         Returns
         -------
@@ -809,9 +813,9 @@ class Krige3d(object):
         dz = point1[2] - point2[2]
         sqdist = 0.0
         for i in xrange(3):
-            cont = self.rotmat[0][i, 0] * dx + \
-                   self.rotmat[0][i, 1] * dy + \
-                   self.rotmat[0][i, 2] * dz
+            cont = rotmat[i, 0] * dx + \
+                   rotmat[i, 1] * dy + \
+                   rotmat[i, 2] * dz
             sqdist += cont * cont
         return sqdist
 
