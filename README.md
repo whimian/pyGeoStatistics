@@ -7,7 +7,9 @@ which is immensely inspired by ancient gslib (in Fortran).
 
 # Routines
 
-- [`nst.py`](#normal_ncore_transform_nst_py_): apply normal score transform to data.
+- `eda.py`: exploratory data anaylysis.
+
+- [`nst.py`](#normal-ncore-transform-nstpy): apply normal score transform to data.
 
 - `gam.py`: calculate variogram for regular data.
 
@@ -15,14 +17,14 @@ which is immensely inspired by ancient gslib (in Fortran).
 
 - `sa.ipynb`: interactive structural analysis.
 
-- `krige2d.py`: kriging 2d data.
+- [`krige2d.py`](#3d-kriging-krige2dpy): kriging 2d data.
 
     - Simple Kriging
     - Ordinary Kriging
 
-- [`krige3d.py`](#3d_kriging_krige3d_py): kriging 3d data.
+- [`krige3d.py`](#3d-kriging-krige3dpy): kriging 3d data.
 
-    - Simple Krigingv
+    - Simple Kriging
     - Ordinary Kriging
     - Universal Kriging (Kriging with a Trend)
     - Kriging the Trend
@@ -72,6 +74,7 @@ and two kinds of additional functionalities:
 2. kriging the trend
     - set `itrend = True`
 
+*A detailed mathematical explanation of kriging could be found in [kriging.ipynb](kriging.ipynb)*
 ## Validation
 
 Two validation methods are supported in krige3d, which are cross-validation
