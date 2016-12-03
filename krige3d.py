@@ -9,7 +9,7 @@ Created on Tue Nov 22 2016
 """
 from __future__ import division, print_function, absolute_import
 import json
-from itertools import izip
+from itertools import izip, product
 import time
 from collections import namedtuple
 import numpy as np
@@ -269,7 +269,6 @@ class Krige3d(object):
         self.rotmat[:, 2, 1] = afac2 * (-sint * cosa + cost * sinb * sina)
         self.rotmat[:, 2, 2] = afac2 * (cost * cosb)
 
-
     def kt3d(self):
         self._preprocess()
         # Set up the rotation/anisotropy matrices needed for variogram
@@ -354,10 +353,6 @@ class Krige3d(object):
                     var = list()
                     self.extest = var[self.iextve]  # colocated external value
                 if self.extest < self.tmin or self.extest >= self.tmax:
-                    # est = self.const.UNEST
-                    # estv = self.const.UNEST
-                    # self.estimation.append(self.const.UNEST)
-                    # self.estimation_variance.append(self.const.UNEST)
                     self.estimation[index] = self.const.UNEST
                     self.estimation_variance[index] = self.const.UNEST
                     continue
@@ -376,7 +371,7 @@ class Krige3d(object):
 
             na = 0
             for i in xrange(self.searcher.nclose):
-                ind = self.searcher.close_samples[i]
+                ind = int(self.searcher.close_samples[i]+0.5)
                 accept = True
                 if self.koption != 0 and \
                     abs(self.vr['x'][ind] - xloc) + \
@@ -397,10 +392,6 @@ class Krige3d(object):
                         na += 1
             # check number of samples found
             if na < self.ndmin:
-                # est = self.const.UNEST
-                # estv = self.const.UNEST
-                # self.estimation.append(self.const.UNEST)
-                # self.estimation_variance.append(self.const.UNEST)
                 self.estimation[index] = self.const.UNEST
                 self.estimation_variance[index] = self.const.UNEST
                 continue
@@ -455,15 +446,17 @@ class Krige3d(object):
         left = self._cova3((xa[0], ya[0], za[0]), (xa[0], ya[0], za[0]))
         #Right hand side
         if self.ndb <= 1:
-            right = self._cova3((xa[0], ya[0], za[0]), (xa[0], ya[0], za[0]))
+            right = self._cova3((xa[0], ya[0], za[0]),
+                                (self.xdb[0], self.ydb[0], self.zdb[0]))
         else:
             right = 0
             for i in xrange(self.ndb):
-                cov = self._cova3((xa[0], ya[0], za[0]), (xa[i], ya[i], za[i]))
+                cov = self._cova3((xa[0], ya[0], za[0]),
+                                  (self.xdb[i], self.ydb[i], self.zdb[i]))
                 right += cov
-                dx = xa[0] - xa[i]
-                dy = ya[0] - ya[i]
-                dz = za[0] - za[i]
+                dx = xa[0] - self.xdb[i]
+                dy = ya[0] - self.ydb[i]
+                dz = za[0] - self.zdb[i]
                 if dx*dx + dy*dy + dz*dz < np.finfo(float).eps:
                     right -= self.c0
             right /= self.ndb
@@ -493,9 +486,7 @@ class Krige3d(object):
         # first = False
         left = np.full((neq, neq), np.nan)
         # fill the kriging matrix:
-        j_list, i_list = np.meshgrid(np.arange(0, na, 1, dtype=np.int),
-                                     np.arange(0, na, 1, dtype=np.int))
-        for i, j in zip(i_list.flat, j_list.flat):
+        for i, j in product(xrange(na), xrange(na)):
             if np.isnan(left[j, i]):
                 left[i, j] = self._cova3((xa[i], ya[i], za[i]),
                                          (xa[j], ya[j], za[j]))
@@ -518,9 +509,9 @@ class Krige3d(object):
                     cov = self._cova3((xa[i], ya[i], za[i]),
                                       (self.xdb[j], self.ydb[j], self.zdb[j]))
                     cb += cov
-                    dx = xa[i] - xa[j]
-                    dy = ya[i] - ya[j]
-                    dz = za[i] - za[j]
+                    dx = xa[i] - self.xdb[j]
+                    dy = ya[i] - self.ydb[j]
+                    dz = za[i] - self.zdb[j]
                     if dx*dx + dy*dy + dz*dz < np.finfo(float).eps:
                         cb -= self.c0
             cb /= self.ndb
