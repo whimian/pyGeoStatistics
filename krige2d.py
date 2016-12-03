@@ -331,9 +331,6 @@ class Krige2d():
 
         # Establish left hand side covariance matrix:
         left = np.full((neq, neq), np.nan)
-        # j_list, i_list = np.meshgrid(np.arange(0, na, 1, dtype=np.int),
-        #                              np.arange(0, na, 1, dtype=np.int))
-        # for i, j in zip(i_list.flat, j_list.flat):
         for i, j in product(xrange(na), xrange(na)):
             if np.isnan(left[j, i]):
                 left[i, j] = self.cova2(xa[i], ya[i], xa[j], ya[j])
@@ -372,8 +369,8 @@ class Krige2d():
             s = linalg.solve(left, right)
         except linalg.LinAlgError as inst:
             print("Warning kb2d: singular matrix for block " + \
-                    "{},{}".format((xloc-self.xmn)/self.xsiz,
-                                (yloc-self.ymn)/self.ysiz))
+                  "{},{}".format((xloc-self.xmn)/self.xsiz,
+                                 (yloc-self.ymn)/self.ysiz))
             return np.nan, np.nan
 
         estv = self.block_covariance
@@ -385,27 +382,24 @@ class Krige2d():
             est += (1 - np.sum(s[:na])) * self.skmean
         return est, estv
 
-    def view2d(self, pname=None):
+    def view(self, pname=None):
         pname = self.property_name[0] if pname is None else pname
-        if self._2d is False:
-            print("3D data, use view3d() instead.")
-        else:
-            fig, ax = plt.subplots()
-            im = ax.imshow(self.estimation.T, interpolation='nearest',
-                           origin='lower',
-                           extent=[self.xmn,
-                                   self.xmn + (self.nx - 1)*self.xsiz,
-                                   self.ymn,
-                                   self.ymn + (self.ny - 1)*self.ysiz])
-            ax.set_xlabel("X (m)")
-            ax.set_ylabel("Y (m)")
-            ax.set_title("Estimation")
-            ax.set_aspect('equal')
-            fig.colorbar(im)
-            fig.show()
+        fig, ax = plt.subplots()
+        im = ax.imshow(self.estimation.T, interpolation='nearest',
+                       origin='lower',
+                       extent=[self.xmn,
+                               self.xmn + (self.nx - 1)*self.xsiz,
+                               self.ymn,
+                               self.ymn + (self.ny - 1)*self.ysiz])
+        ax.set_xlabel("X (m)")
+        ax.set_ylabel("Y (m)")
+        ax.set_title("Estimation")
+        ax.set_aspect('equal')
+        fig.colorbar(im)
+        fig.show()
 
 if __name__ == '__main__':
     test_krige = Krige2d("testData/test_krige2d.par")
     test_krige.read_data()
     test_krige.kd2d()
-    test_krige.view2d()
+    test_krige.view()
