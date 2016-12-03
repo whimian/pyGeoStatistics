@@ -13,6 +13,21 @@ class SuperBlockSearcher(object):
     """
     Class for performing Super Block Search
 
+    This subroutine sets up a 3-D "super block" model and orders the data
+    by super block number.  The limits of the super block is set to the
+    minimum and maximum limits of the grid; data outside are assigned to
+    the nearest edge block.
+
+    The idea is to establish a 3-D block network that contains all the
+    relevant data. The data are then sorted by their index location in
+    the search network, i.e., the index location is given after knowing
+    the block index in each coordinate direction (ix,iy,iz):
+            ii = (iz-1)*nxsup*nysup + (iy-1)*nxsup + ix
+    An array, the same size as the number of super blocks, is constructed
+    that contains the cumulative number of data in the model. With this
+    array it is easy to quickly check what data are located near any given
+    location.
+
     Parameters
     ----------
     nx,xmn,xsiz      Definition of the X grid being considered
@@ -38,8 +53,6 @@ class SuperBlockSearcher(object):
         self.MAXSB = []
 
         # rotation matrix
-        # self.irot = None   # index of the rotation matrix for searching
-        # self.MAXROT = None  # size of rotation matrix arrays
         self.rotmat = None  # rotation matrix for searching!!!
         self.radsqd = None  # squared search radius
 
@@ -47,7 +60,6 @@ class SuperBlockSearcher(object):
         self.noct = None  #  the number of data noct to retain from each octant
 
         #To be calculated
-
         self.nisb = None  # array with cumulative number of data in each super block.
         # super block definitions
         self.nxsup = None
@@ -59,19 +71,19 @@ class SuperBlockSearcher(object):
         self.nzsup = None
         self.zmnsup = None
         self.zsizsup = None
-
         # superblocks to search
         self.nsbtosr = None    # Number of super blocks to search
         self.ixsbtosr = None   # X offsets for super blocks to search
         self.iysbtosr = None   # Y offsets for super blocks to search
         self.izsbtosr = None   # Z offsets for super blocks to search
-
         # points found within nearby super blocks
         self.nclose = None
         self.close_samples = None
         self.infoct = None
+        # output sort_index
+        self.sort_index = None
 
-    def super_flat_index(self, ixsup, iysup, izsup):
+    def _super_flat_index(self, ixsup, iysup, izsup):
         return ixsup + iysup * self.nxsup + izsup * self.nxsup * self.nysup
 
     def setup(self):
@@ -116,20 +128,23 @@ class SuperBlockSearcher(object):
         # self.super_block = np.full((self.nxsup, self.nysup, self.nzsup), [])
         temp = np.zeros_like(self.vr['x'])
         self.nisb = np.zeros((self.nxsup*self.nysup*self.nzsup,))
-        for idx, (ix, iy, iz) in enumerate(zip(x_index, y_index, z_index)):
-            # ii = ix + iy*self.nxsup + iz*self.nxsup*self.nysup
-            ii = self.super_flat_index(ix, iy, iz)
+        for idx, (ix, iy, iz) in enumerate(izip(x_index, y_index, z_index)):
+            ii = self._super_flat_index(ix, iy, iz)
             temp[idx] = ii
             self.nisb[ii] += 1
 
         # sort data by asceding super block number:
-        sort_index = np.argsort(temp)
-        self.vr = self.vr[sort_index]
+        self.sort_index = np.argsort(temp)
+        self.vr = self.vr[self.sort_index]
         # set up nisb
         self.nisb = np.cumsum(self.nisb, dtype=np.int)
 
     def pickup(self):
         """
+        This subroutine establishes which super blocks must be searched given
+        that a point being estimated/simulated falls within a super block
+        centered at 0,0,0.
+
         Variables estimated
         -------------------
         nsbtosr          Number of super blocks to search
@@ -148,23 +163,18 @@ class SuperBlockSearcher(object):
             yo = j * self.ysizsup
             zo = k * self.zsizsup
             shortest = np.finfo(float).max
-            for i1, j1, k1 in product(xrange(-1, 2),
-                                      xrange(-1, 2), xrange(-1, 2)):
-                for i2, j2, k2 in product(xrange(-1, 2),
-                                          xrange(-1, 2), xrange(-1, 2)):
-                    if i1 != 0 and j1 != 0 and k1 != 0 and\
-                            i2 != 0 and j2 != 0 and k2 != 0:
-                        xdis = (i1 - i2) * 0.5 * self.xsizsup + xo
-                        ydis = (j1 - j2) * 0.5 * self.ysizsup + yo
-                        zdis = (k1 - k2) * 0.5 * self.zsizsup + zo
-                        hsqd = self.sqdist((0, 0, 0), (xdis, ydis, zdis))
-                        shortest = hsqd if hsqd < shortest else shortest
+            for i1, j1, k1 in product([-1, 1], [-1, 1], [-1, 1]):
+                for i2, j2, k2 in product([-1, 1], [-1, 1], [-1, 1]):
+                    xdis = (i1 - i2) * 0.5 * self.xsizsup + xo
+                    ydis = (j1 - j2) * 0.5 * self.ysizsup + yo
+                    zdis = (k1 - k2) * 0.5 * self.zsizsup + zo
+                    hsqd = self.sqdist((0, 0, 0), (xdis, ydis, zdis))
+                    shortest = hsqd if hsqd < shortest else shortest
             if shortest <= self.radsqd:
                 self.nsbtosr += 1
                 self.ixsbtosr.append(i)
                 self.iysbtosr.append(j)
                 self.izsbtosr.append(k)
-
 
     def search(self, xloc, yloc, zloc):
         """
@@ -189,7 +199,7 @@ class SuperBlockSearcher(object):
                     izsup < 0 or izsup >= self.nzsup:
                 continue
             # find number of points within this super block
-            ii = self.super_flat_index(ixsup, iysup, izsup)
+            ii = self._super_flat_index(ixsup, iysup, izsup)
             i = None
             if ii == 0:
                 nums = self.nisb[ii]
@@ -209,7 +219,7 @@ class SuperBlockSearcher(object):
                 distance.append(i)
                 i += 1
         # sort nearby samples by distance
-        distance =np.array(distance)
+        distance = np.array(distance)
         self.close_samples = np.array(self.close_samples)
         sort_index = np.argsort(distance)
         self.close_samples = self.close_samples[sort_index]
