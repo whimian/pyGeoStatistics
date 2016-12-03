@@ -71,9 +71,9 @@ class Krige3d(object):
             self.izlj = params['jicolz']
             self.ivrlj = params['jicolvr']  #: 0,
             self.iextvj = params['jicolsec']
-
+            # debug and output data file
             self.idbg = params['idbg']  #: 3,
-            self.dbgfl = params['dbgfl']  #: 'kb2d.dbg',
+            self.dbgfl = params['dbgfl']  #: 'kt3d.dbg',
             self.outfl = params['outfl']  #: 'out.dat',
             # Grid definition
             self.nx = params['nx']  #: 50,
@@ -279,6 +279,7 @@ class Krige3d(object):
         # compute rescaling factor:
         self._rescaling()
         # Set up for super block searching:
+        print("Setting up Super Block Search...")
         self._create_searcher()
         # Set up discretization points per block
         self._block_discretization()
@@ -368,10 +369,9 @@ class Krige3d(object):
             za = list()
             vra = list()
             vea = list()  # colocated external drift value
-
             na = 0
             for i in xrange(self.searcher.nclose):
-                ind = int(self.searcher.close_samples[i]+0.5)
+                ind = self.searcher.close_samples[i]
                 accept = True
                 if self.koption != 0 and \
                     abs(self.vr['x'][ind] - xloc) + \
@@ -383,9 +383,9 @@ class Krige3d(object):
                 #     accept = False
                 if accept:
                     if na < self.ndmax:
-                        xa.append(self.vr['x'][ind] - xloc + 0.5*self.xsiz)
-                        ya.append(self.vr['y'][ind] - yloc + 0.5*self.ysiz)
-                        za.append(self.vr['z'][ind] - zloc + 0.5*self.zsiz)
+                        xa.append(self.vr['x'][ind] - xloc)
+                        ya.append(self.vr['y'][ind] - yloc)
+                        za.append(self.vr['z'][ind] - zloc)
                         vra.append(self.vr[self.property_name[0]][ind])
                         if self.ktype == 3:  # KED
                             vea.append(self.vr[self.property_name[1]])
@@ -394,6 +394,7 @@ class Krige3d(object):
             if na < self.ndmin:
                 self.estimation[index] = self.const.UNEST
                 self.estimation_variance[index] = self.const.UNEST
+                print("not enough data.")
                 continue
             # Test if there are enough samples to estimate all drift terms:
             if na >= 1 and na <= self.mdt:
@@ -401,6 +402,7 @@ class Krige3d(object):
                 #     firon = False
                 self.estimation[index] = self.const.UNEST
                 self.estimation_variance[index] = self.const.UNEST
+                print("not enough data to estimate all drift terms")
                 continue
             xa = np.array(xa)
             ya = np.array(ya)
@@ -423,7 +425,8 @@ class Krige3d(object):
                 print("{}% ".format(percent) +\
                   "."*20 + "{}s elapsed.".format(np.round(dtime, decimals=3)))
             percent_od = percent
-        print("Search time: {}s".format(ts))
+        print("Kriging Finished.")
+        print("Time used for searching: {}s".format(ts))
 
     def _rescaling(self):
         if self.radsqd < 1:
@@ -607,7 +610,6 @@ class Krige3d(object):
         # if estimating the trend then reset the right terms all to 0.0
         if self.itrend == True:
             right = 0
-        # write out the kriging matrix if seriously debugging:
 
         # Solve the kriging system
         s = None
@@ -702,9 +704,11 @@ class Krige3d(object):
         self.searcher.radsqd = self.radsqd
         # octant search
         self.searcher.noct = self.noct
-
+        # Setup
         self.searcher.setup()
         self.searcher.pickup()
+        # sort data according to superblock number
+        self.vr = self.vr[self.searcher.sort_index]
 
     def _block_discretization(self):
         self.nxdis = 1 if self.nxdis < 1 else self.nxdis
@@ -839,4 +843,3 @@ if __name__ == '__main__':
     test_krige3d.read_data()
     test_krige3d.kt3d()
     test_krige3d.view2d()
-

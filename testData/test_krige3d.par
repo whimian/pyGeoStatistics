@@ -52,7 +52,7 @@
     "jicolx": 0, 
     "jicoly": 1, 
     "jicolz": 2, 
-    "ndmax": 10, 
+    "ndmax": 30, 
     "ndmin": 1, 
     "noct": 0, 
     "nst": 1, 

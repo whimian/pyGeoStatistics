@@ -26,7 +26,7 @@ params = {
     'jicolsec': 4,
 
     'idbg': 3,
-    'dbgfl': 'kb2d.dbg',
+    'dbgfl': 'kt3d.dbg',
     'outfl': 'out.dat',
 
     'nx': 98,
@@ -44,7 +44,7 @@ params = {
     'nzdis': 1,
 
     'ndmin': 1,
-    'ndmax': 10,
+    'ndmax': 30,
 
     'noct': 0,
     'radius_hmax': 4000,
