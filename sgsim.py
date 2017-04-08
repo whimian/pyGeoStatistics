@@ -5,6 +5,7 @@ Sequential Gaussian Simulation
 Created on Sun Dec 4 2016
 """
 from __future__ import division, print_function, absolute_import
+import os
 import json
 from itertools import izip, product
 import time
@@ -973,7 +974,23 @@ class Sgsim(object):
 
     def view2d(self):
         "View 2D data using matplotlib"
-        pass
+        for file_name in os.listdir("simulations/"):
+            estimation = np.load("simulations/{}".format(file_name))        
+            fig, ax = plt.subplots()
+            im = ax.imshow(estimation.reshape(self.ny, self.nx),
+                           interpolation='nearest',
+                           origin='lower',
+                           extent=[self.xmn,
+                                   self.xmn + (self.nx - 1)*self.xsiz,
+                                   self.ymn,
+                                   self.ymn + (self.ny - 1)*self.ysiz],
+                     cmap='jet')
+            ax.set_xlabel("X (m)")
+            ax.set_ylabel("Y (m)")
+            ax.set_title("Estimation")
+            ax.set_aspect('equal')
+            fig.colorbar(im)
+            fig.show()
 
     def view3d(self):
         "View 3D data using mayavi"
@@ -984,3 +1001,4 @@ if __name__ == '__main__':
 #    test_sgsim.simulate()
     import cProfile
     cProfile.run('test_sgsim.simulate()', sort='cumtime')
+    test_sgsim.view2d()
