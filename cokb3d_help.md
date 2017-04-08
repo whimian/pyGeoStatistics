@@ -15,14 +15,14 @@ z coordinates, the primary variable to be kriged, and all secondary variables.
 - `tmin` and `tmax`: all values (for all variables) strictly less than `tmin`
 and greater than or equal to `tmax` are ignored.
 
-- `coloc`: set to 1 if performing co-located cokriging with a gridded secondary
+- `icolloc`: set to 1 if performing co-located cokriging with a gridded secondary
  variable, otherwise set to 0.
 
 - `secfl`: if co-located cokriging, the file with
 the gridded secondary variable.
 
 - `icolsec`: if co-located cokriging, the column number for the secondary
-variable in `secfl`
+variable in `secfl`.
 
 - `idbg`: an integer debugging level between 0 and 3. The higher the
 debugging level the more output. Normally level 0 or 1 should be chosen.
@@ -47,7 +47,7 @@ is performed.
 data, and the maximum number of secondary data (regardless of which secondary
 variable) to use for kriging a block.
 
-- `pradius_hmax', 'pradius_hmin` and `pradius_vert`:
+- `pradius_hmax`, `pradius_hmin` and `pradius_vert`:
 search radii for primary data
 
 - `sradius_hmax`, `sradius_hmin` and `sradius_vert`:
@@ -56,7 +56,7 @@ search radii for secondary data (same for all types)
 - `sangle`, `sangle1` and `sangle2`: the angles defining the common
 orientation of the search ellipsoids for primary and secondary data
 
-- `ktype: the kriging type must be specified:
+- `ktype`: the kriging type must be specified:
     - 0 = simple cokriging;
     - 1 = standardized ordinary cokriging with re-centered variables
     and a single unbiasedness constraint;
