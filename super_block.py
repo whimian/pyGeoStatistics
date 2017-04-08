@@ -258,7 +258,7 @@ class SuperBlockSearcher(object):
                     self.close_samples[na] = i
                     distance[na] = h
                     if na == nt:
-                        nclose = na
+                        self.nclose = na
                         break
                     na += 1
         # how many octants from which samples are drawn
