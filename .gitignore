@@ -91,3 +91,6 @@ ENV/
 
 # VS code
 .vscode/
+
+# Numpy data
+*.npy
