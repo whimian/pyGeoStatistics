@@ -761,7 +761,7 @@ class Krige3d(object):
         # loop over all structures
         cova = 0
         for ist in xrange(self.nst):
-            if ist != 1:
+            if ist != 0:
                 hsqd = self.sqdist(point1, point2, self.rotmat[ist])
             h = np.sqrt(hsqd)
             if self.it[ist] == 1:  # Spherical
@@ -806,6 +806,14 @@ class Krige3d(object):
         dx = point1[0] - point2[0]
         dy = point1[1] - point2[1]
         dz = point1[2] - point2[2]
+#        scalar = np.array([dx, dy, dz])
+#        sqdist = rotmat * scalar
+#        # sum along row direction
+#        sqdist = np.sum(sqdist, axis=1)
+#        # take power
+#        sqdist = sqdist**2
+#        sqdist = np.sum(sqdist)
+
         sqdist = 0.0
         for i in xrange(3):
             cont = rotmat[i, 0] * dx + \
@@ -827,7 +835,7 @@ class Krige3d(object):
                                    self.xmn + (self.nx - 1)*self.xsiz,
                                    self.ymn,
                                    self.ymn + (self.ny - 1)*self.ysiz],
-                     cmap='jet')
+                           cmap='jet')
             ax.set_xlabel("X (m)")
             ax.set_ylabel("Y (m)")
             ax.set_title("Estimation")
@@ -846,4 +854,4 @@ if __name__ == '__main__':
 #    test_krige3d.view2d()
     import cProfile
     cProfile.run("test_krige3d.kt3d()", sort='cumtime')
-    test_krige3d.view2d()
+#    test_krige3d.view2d()
