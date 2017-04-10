@@ -826,7 +826,8 @@ class Krige3d(object):
                            extent=[self.xmn,
                                    self.xmn + (self.nx - 1)*self.xsiz,
                                    self.ymn,
-                                   self.ymn + (self.ny - 1)*self.ysiz])
+                                   self.ymn + (self.ny - 1)*self.ysiz],
+                     cmap='jet')
             ax.set_xlabel("X (m)")
             ax.set_ylabel("Y (m)")
             ax.set_title("Estimation")
@@ -841,5 +842,8 @@ class Krige3d(object):
 if __name__ == '__main__':
     test_krige3d = Krige3d("testData/test_krige3d.par")
     test_krige3d.read_data()
-    test_krige3d.kt3d()
+#    test_krige3d.kt3d()
+#    test_krige3d.view2d()
+    import cProfile
+    cProfile.run("test_krige3d.kt3d()", sort='cumtime')
     test_krige3d.view2d()
