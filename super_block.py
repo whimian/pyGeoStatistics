@@ -7,6 +7,7 @@ Created on Tue Nov 22 2016
 from __future__ import division, print_function
 from itertools import izip, product
 import numpy as np
+# from numba import jit
 
 
 class SuperBlockSearcher(object):
@@ -168,7 +169,7 @@ class SuperBlockSearcher(object):
                     xdis = (i1 - i2) * 0.5 * self.xsizsup + xo
                     ydis = (j1 - j2) * 0.5 * self.ysizsup + yo
                     zdis = (k1 - k2) * 0.5 * self.zsizsup + zo
-                    hsqd = self.sqdist((0, 0, 0), (xdis, ydis, zdis))
+                    hsqd = sqdist((0, 0, 0), (xdis, ydis, zdis), self.rotmat)
                     shortest = hsqd if hsqd < shortest else shortest
             if shortest <= self.radsqd:
                 self.nsbtosr += 1
@@ -209,9 +210,12 @@ class SuperBlockSearcher(object):
                 i = self.nisb[ii - 1]
             # loop over all the data within this super block
             for k in xrange(0, nums):
-                hsqd = self.sqdist((xloc, yloc, zloc),
+                # hsqd = self.sqdist((xloc, yloc, zloc),
+                #                    (self.vr['x'][i], self.vr['y'][i],
+                #                     self.vr['z'][i]))
+                hsqd = sqdist((xloc, yloc, zloc),
                                    (self.vr['x'][i], self.vr['y'][i],
-                                    self.vr['z'][i]))
+                                    self.vr['z'][i]), self.rotmat)
                 if hsqd > self.radsqd:
                     continue
                 self.nclose += 1
@@ -289,32 +293,33 @@ class SuperBlockSearcher(object):
 
         return (x_index, y_index, z_index)
 
-    def sqdist(self, point1, point2):
-        """
-        This routine calculates the anisotropic distance between two points
-        given the coordinates of each point and a definition of the
-        anisotropy.
+# @jit
+def sqdist(point1, point2, rotmat):
+    """
+    This routine calculates the anisotropic distance between two points
+    given the coordinates of each point and a definition of the
+    anisotropy.
 
-        Parameters
-        ----------
-        point1 : tuple
-            Coordinates of first point (x1,y1,z1)
-        point2 : tuple
-            Coordinates of second point (x2,y2,z2)
+    Parameters
+    ----------
+    point1 : tuple
+        Coordinates of first point (x1,y1,z1)
+    point2 : tuple
+        Coordinates of second point (x2,y2,z2)
 
-        Returns
-        -------
-        sqdist : scalar
-            The squared distance accounting for the anisotropy
-            and the rotation of coordinates (if any).
-        """
-        dx = point1[0] - point2[0]
-        dy = point1[1] - point2[1]
-        dz = point1[2] - point2[2]
-        sqdist = 0.0
-        for i in xrange(3):
-            cont = self.rotmat[i, 0] * dx + \
-                   self.rotmat[i, 1] * dy + \
-                   self.rotmat[i, 2] * dz
-            sqdist += cont * cont
-        return sqdist
+    Returns
+    -------
+    sqdist : scalar
+        The squared distance accounting for the anisotropy
+        and the rotation of coordinates (if any).
+    """
+    dx = point1[0] - point2[0]
+    dy = point1[1] - point2[1]
+    dz = point1[2] - point2[2]
+    sqdist = 0.0
+    for i in xrange(3):
+        cont = rotmat[i, 0] * dx + \
+               rotmat[i, 1] * dy + \
+               rotmat[i, 2] * dz
+        sqdist += cont * cont
+    return sqdist

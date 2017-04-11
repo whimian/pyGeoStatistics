@@ -754,7 +754,7 @@ class Krige3d(object):
             covariance between (x1,y1,z1) and (x2,y2,z2)
         """
         # check for 'zero' distance, return maxcov if so:
-        hsqd = self.sqdist(point1, point2, self.rotmat[0])
+        hsqd = sqdist(point1, point2, self.rotmat[0])
         if hsqd < np.finfo(float).eps:
             cova = self.maxcov
             return cova
@@ -762,7 +762,7 @@ class Krige3d(object):
         cova = 0
         for ist in xrange(self.nst):
             if ist != 0:
-                hsqd = self.sqdist(point1, point2, self.rotmat[ist])
+                hsqd = sqdist(point1, point2, self.rotmat[ist])
             h = np.sqrt(hsqd)
             if self.it[ist] == 1:  # Spherical
                 hr = h / self.aa_hmax[ist]
@@ -780,47 +780,40 @@ class Krige3d(object):
                 cova += self.cc[ist] * np.cos(h / self.aa_hmax[ist] * np.pi)
         return cova
 
-    def sqdist(self, point1, point2, rotmat):
-        """
-        This routine calculates the anisotropic distance between two points
-        given the coordinates of each point and a definition of the
-        anisotropy.
+    # def sqdist(self, point1, point2, rotmat):
+    #     """
+    #     This routine calculates the anisotropic distance between two points
+    #     given the coordinates of each point and a definition of the
+    #     anisotropy.
 
-        This method only consider a single anisotropy senario.
+    #     This method only consider a single anisotropy senario.
 
-        Parameters
-        ----------
-        point1 : tuple
-            Coordinates of first point (x1,y1,z1)
-        point2 : tuple
-            Coordinates of second point (x2,y2,z2)
-        rotmat : 3*3 ndarray
-            matrix of rotation for this structure
+    #     Parameters
+    #     ----------
+    #     point1 : tuple
+    #         Coordinates of first point (x1,y1,z1)
+    #     point2 : tuple
+    #         Coordinates of second point (x2,y2,z2)
+    #     rotmat : 3*3 ndarray
+    #         matrix of rotation for this structure
 
-        Returns
-        -------
-        sqdist : scalar
-            The squared distance accounting for the anisotropy
-            and the rotation of coordinates (if any).
-        """
-        dx = point1[0] - point2[0]
-        dy = point1[1] - point2[1]
-        dz = point1[2] - point2[2]
-#        scalar = np.array([dx, dy, dz])
-#        sqdist = rotmat * scalar
-#        # sum along row direction
-#        sqdist = np.sum(sqdist, axis=1)
-#        # take power
-#        sqdist = sqdist**2
-#        sqdist = np.sum(sqdist)
+    #     Returns
+    #     -------
+    #     sqdist : scalar
+    #         The squared distance accounting for the anisotropy
+    #         and the rotation of coordinates (if any).
+    #     """
+    #     dx = point1[0] - point2[0]
+    #     dy = point1[1] - point2[1]
+    #     dz = point1[2] - point2[2]
 
-        sqdist = 0.0
-        for i in xrange(3):
-            cont = rotmat[i, 0] * dx + \
-                   rotmat[i, 1] * dy + \
-                   rotmat[i, 2] * dz
-            sqdist += cont * cont
-        return sqdist
+    #     sqdist = 0.0
+    #     for i in xrange(3):
+    #         cont = rotmat[i, 0] * dx + \
+    #                rotmat[i, 1] * dy + \
+    #                rotmat[i, 2] * dz
+    #         sqdist += cont * cont
+    #     return sqdist
 
     def view2d(self):
         "View 2D data using matplotlib"
@@ -847,11 +840,46 @@ class Krige3d(object):
         "View 3D data using mayavi"
         pass
 
+def sqdist(point1, point2, rotmat):
+    """
+    This routine calculates the anisotropic distance between two points
+    given the coordinates of each point and a definition of the
+    anisotropy.
+
+    This method only consider a single anisotropy senario.
+
+    Parameters
+    ----------
+    point1 : tuple
+        Coordinates of first point (x1,y1,z1)
+    point2 : tuple
+        Coordinates of second point (x2,y2,z2)
+    rotmat : 3*3 ndarray
+        matrix of rotation for this structure
+
+    Returns
+    -------
+    sqdist : scalar
+        The squared distance accounting for the anisotropy
+        and the rotation of coordinates (if any).
+    """
+    dx = point1[0] - point2[0]
+    dy = point1[1] - point2[1]
+    dz = point1[2] - point2[2]
+    sqdist = 0.0
+    for i in xrange(3):
+        cont = rotmat[i, 0] * dx + \
+                rotmat[i, 1] * dy + \
+                rotmat[i, 2] * dz
+        sqdist += cont * cont
+    return sqdist
+
+
 if __name__ == '__main__':
     test_krige3d = Krige3d("testData/test_krige3d.par")
     test_krige3d.read_data()
 #    test_krige3d.kt3d()
 #    test_krige3d.view2d()
     import cProfile
-    cProfile.run("test_krige3d.kt3d()", sort='cumtime')
+    cProfile.run("test_krige3d.kt3d()", sort='tottime', filename="profile_time.txt")
 #    test_krige3d.view2d()
