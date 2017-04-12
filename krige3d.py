@@ -13,9 +13,11 @@ from itertools import izip, product
 import time
 from collections import namedtuple
 import numpy as np
+from numba import jit
 from scipy import linalg
 import matplotlib.pyplot as plt
 from super_block import SuperBlockSearcher
+
 
 __author__ = "yuhao"
 
@@ -421,7 +423,7 @@ class Krige3d(object):
             # print working percentage
             percent = np.round(index/nloop*100, decimals=0)
             dtime = time.time() - t1
-            if percent != percent_od:
+            if percent != percent_od and percent % 10 == 0:
                 print("{}% ".format(percent) +\
                   "."*20 + "{}s elapsed.".format(np.round(dtime, decimals=3)))
             percent_od = percent
@@ -446,16 +448,25 @@ class Krige3d(object):
         xa, ya, za, vra: 1-D ndarray
         """
         # Left hand side
-        left = self._cova3((xa[0], ya[0], za[0]), (xa[0], ya[0], za[0]))
+        left = cova3(
+            (xa[0], ya[0], za[0]), (xa[0], ya[0], za[0]),
+            self.rotmat, self.maxcov, self.nst, self.it, self.cc, self.aa_hmax)
         #Right hand side
         if self.ndb <= 1:
-            right = self._cova3((xa[0], ya[0], za[0]),
-                                (self.xdb[0], self.ydb[0], self.zdb[0]))
+            right = cova3(
+                (xa[0], ya[0], za[0]), (self.xdb[0], self.ydb[0], self.zdb[0]),
+                self.rotmat, self.maxcov,
+                self.nst, self.it, self.cc, self.aa_hmax)
         else:
             right = 0
             for i in xrange(self.ndb):
-                cov = self._cova3((xa[0], ya[0], za[0]),
-                                  (self.xdb[i], self.ydb[i], self.zdb[i]))
+                # cov = self._cova3((xa[0], ya[0], za[0]),
+                #                   (self.xdb[i], self.ydb[i], self.zdb[i]))
+                cov = cova3(
+                    (xa[0], ya[0], za[0]),
+                    (self.xdb[i], self.ydb[i], self.zdb[i]),
+                    self.rotmat, self.maxcov,
+                    self.nst, self.it, self.cc, self.aa_hmax)
                 right += cov
                 dx = xa[0] - self.xdb[i]
                 dy = ya[0] - self.ydb[i]
@@ -487,40 +498,15 @@ class Krige3d(object):
         neq = self.mdt + na  # number of equations
         # Left Hand Side
         # first = False
-        left = np.full((neq, neq), np.nan)
-        # fill the kriging matrix:
-        for i, j in product(xrange(na), xrange(na)):
-            if np.isnan(left[j, i]):
-                left[i, j] = self._cova3((xa[i], ya[i], za[i]),
-                                         (xa[j], ya[j], za[j]))
-            else:
-                left[i, j] = left[j, i]
-        if neq > na:  # fill for OK
-            left[na, :na] = self.unbias
-            left[:na, na] = self.unbias
-            left[na, na] = 0
+        left = left_side(
+            xa, ya, za, neq, self.unbias, self.rotmat, self.maxcov, self.nst,
+            self.it, self.cc, self.aa_hmax)
 
         # Right Hand Side
-        right = list()
-        for i in xrange(na):
-            if self.ndb <= 1:
-                cb = self._cova3((xa[i], ya[i], za[i]),
-                                 (self.xdb[0], self.ydb[0], self.zdb[0]))
-            else:
-                cb = 0
-                for j in xrange(self.ndb):
-                    cov = self._cova3((xa[i], ya[i], za[i]),
-                                      (self.xdb[j], self.ydb[j], self.zdb[j]))
-                    cb += cov
-                    dx = xa[i] - self.xdb[j]
-                    dy = ya[i] - self.ydb[j]
-                    dz = za[i] - self.zdb[j]
-                    if dx*dx + dy*dy + dz*dz < np.finfo(float).eps:
-                        cb -= self.c0
-            cb /= self.ndb
-            right.append(cb)
-        if neq > na:
-            right.append(self.unbias)
+        right = right_side(
+            xa, ya, za, self.xdb, self.ydb, self.zdb, neq, self.unbias,
+            self.rotmat, self.maxcov, self.nst, self.it, self.cc, self.aa_hmax,
+            self.c0)
 
         # Add the additional unbiasedness constraints:
         im = na + 1
@@ -531,7 +517,8 @@ class Krige3d(object):
             left[:im, im] = xa * self.resc
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.bv[0])
+            # right.append(self.bv[0])
+            right[im] = self.bv[0]
         # Second drift term (linear in 'y'):
         if self.idrift[1] is True:
             im += 1
@@ -539,7 +526,8 @@ class Krige3d(object):
             left[:im, im] = ya * self.resc
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.bv[1])
+            # right.append(self.bv[1])
+            right[im] = self.bv[1]
         # Third drift term (linear in 'z')
         if self.idrift[2] is True:
             im += 1
@@ -547,7 +535,8 @@ class Krige3d(object):
             left[:im, im] = za * self.resc
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.bv[2])
+            # right.append(self.bv[2])
+            right[im] = self.bv[2]
         # Fourth drift term (quadratic in 'x')
         if self.idrift[3] is True:
             im += 1
@@ -555,7 +544,8 @@ class Krige3d(object):
             left[:im, im] = xa * xa * self.resc
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.bv[3])
+            # right.append(self.bv[3])
+            right[im] = self.bv[3]
         # Fifth drift term (quadratic in 'y')
         if self.idrift[4] is True:
             im += 1
@@ -563,7 +553,8 @@ class Krige3d(object):
             left[:im, im] = ya * ya * self.resc
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.bv[4])
+            # right.append(self.bv[4])
+            right[im] = self.bv[4]
         # Sixth drift term (quadratic in 'z')
         if self.idrift[5] is True:
             im += 1
@@ -571,7 +562,8 @@ class Krige3d(object):
             left[:im, im] = za * za * self.resc
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.bv[5])
+            # right.append(self.bv[5])
+            right[im] = self.bv[5]
         # Seventh drift term (quadratic in 'xy')
         if self.idrift[6] is True:
             im += 1
@@ -579,7 +571,8 @@ class Krige3d(object):
             left[:im, im] = xa * ya * self.resc
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.bv[6])
+            # right.append(self.bv[6])
+            right[im] = self.bv[6]
         # Eighth drift term (quadratic in 'xz')
         if self.idrift[7] is True:
             im += 1
@@ -587,7 +580,8 @@ class Krige3d(object):
             left[:im, im] = xa * za * self.resc
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.bv[7])
+            # right.append(self.bv[7])
+            right[im] = self.bv[7]
         # Ninth drift term (quadratic in 'yz')
         if self.idrift[8] is True:
             im += 1
@@ -595,8 +589,8 @@ class Krige3d(object):
             left[:im, im] = ya * za * self.resc
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.bv[8])
-
+            # right.append(self.bv[8])
+            right[im] = self.bv[8]
         # External drift term
         if self.ktype == 3:  # KED
             im += 1
@@ -604,12 +598,12 @@ class Krige3d(object):
             left[:im, im] = vea * self.resce
             left[im, im:] = 0
             left[im:, im] = 0
-            right.append(self.extest * self.resce)
+            # right.append(self.extest * self.resce)
+            right[im] = self.extest * self.resce
 
-        right = np.array(right)
         # if estimating the trend then reset the right terms all to 0.0
         if self.itrend == True:
-            right = 0
+            right = np.full((neq,), np.nan)
 
         # Solve the kriging system
         s = None
@@ -648,7 +642,11 @@ class Krige3d(object):
                 cov = list()
                 for x1, y1, z1 in izip(self.xdb, self.ydb, self.zdb):
                     for x2, y2, z2 in izip(self.xdb, self.ydb, self.zdb):
-                        cov.append(self._cova3((x1, y1, z1), (x2, y2, z2)))
+                        # cov.append(self._cova3((x1, y1, z1), (x2, y2, z2)))
+                        cov.append(cova3(
+                            (x1, y1, z1), (x2, y2, z2),
+                            self.rotmat, self.maxcov, self.nst,
+                            self.it, self.cc, self.aa_hmax))
                 cov = np.array(cov).reshape((self.ndb, self.ndb))
                 cov[np.diag_indices_from(cov)] -= self.c0
                 self._block_covariance = np.mean(cov)
@@ -740,81 +738,6 @@ class Krige3d(object):
             else:
                 self.maxcov += self.cc[ist]
 
-
-    def _cova3(self, point1, point2):
-        """
-        Parameters
-        ----------
-        point1, point2: tuple of 3
-            coordinates of two points
-
-        Returns
-        -------
-        cova: scalar
-            covariance between (x1,y1,z1) and (x2,y2,z2)
-        """
-        # check for 'zero' distance, return maxcov if so:
-        hsqd = sqdist(point1, point2, self.rotmat[0])
-        if hsqd < np.finfo(float).eps:
-            cova = self.maxcov
-            return cova
-        # loop over all structures
-        cova = 0
-        for ist in xrange(self.nst):
-            if ist != 0:
-                hsqd = sqdist(point1, point2, self.rotmat[ist])
-            h = np.sqrt(hsqd)
-            if self.it[ist] == 1:  # Spherical
-                hr = h / self.aa_hmax[ist]
-                if hr < 1:
-                    cova += self.cc[ist] * (1 - hr * (1.5 - 0.5 * hr * hr))
-            elif self.it[ist] == 2:  # Exponential
-                cova += self.cc[ist] * np.exp(-3.0 * h / self.aa_hmax[ist])
-            elif self.it[ist] == 3:  # Gaussian
-                cova += self.cc[ist] * \
-                        np.exp(-3.0 * (h / self.aa_hmax[ist]) *
-                               (h/self.aa_hmax[ist]))
-            elif self.it[ist] == 4:  # Power
-                cova += self.maxcov - self.cc[ist] * (h**(self.aa_hmax[ist]))
-            elif self.it[ist] == 5:  # Hole Effect
-                cova += self.cc[ist] * np.cos(h / self.aa_hmax[ist] * np.pi)
-        return cova
-
-    # def sqdist(self, point1, point2, rotmat):
-    #     """
-    #     This routine calculates the anisotropic distance between two points
-    #     given the coordinates of each point and a definition of the
-    #     anisotropy.
-
-    #     This method only consider a single anisotropy senario.
-
-    #     Parameters
-    #     ----------
-    #     point1 : tuple
-    #         Coordinates of first point (x1,y1,z1)
-    #     point2 : tuple
-    #         Coordinates of second point (x2,y2,z2)
-    #     rotmat : 3*3 ndarray
-    #         matrix of rotation for this structure
-
-    #     Returns
-    #     -------
-    #     sqdist : scalar
-    #         The squared distance accounting for the anisotropy
-    #         and the rotation of coordinates (if any).
-    #     """
-    #     dx = point1[0] - point2[0]
-    #     dy = point1[1] - point2[1]
-    #     dz = point1[2] - point2[2]
-
-    #     sqdist = 0.0
-    #     for i in xrange(3):
-    #         cont = rotmat[i, 0] * dx + \
-    #                rotmat[i, 1] * dy + \
-    #                rotmat[i, 2] * dz
-    #         sqdist += cont * cont
-    #     return sqdist
-
     def view2d(self):
         "View 2D data using matplotlib"
         if self._2d is False:
@@ -840,6 +763,62 @@ class Krige3d(object):
         "View 3D data using mayavi"
         pass
 
+@jit(nopython=True)
+def left_side(xa, ya, za, neq, unbias, rotmat, maxcov, nst, it, cc, aa_hmax):
+    na = len(xa)
+    left = np.full((neq, neq), np.nan)
+    # fill the kriging matrix:
+    # for i, j in product(xrange(na), xrange(na)):
+    for i in xrange(na):
+        for j in xrange(na):
+            if np.isnan(left[j, i]):
+                # left[i, j] = self._cova3((xa[i], ya[i], za[i]),
+                #                          (xa[j], ya[j], za[j]))
+                left[i, j] = cova3(
+                    (xa[i], ya[i], za[i]), (xa[j], ya[j], za[j]),
+                    rotmat, maxcov, nst, it, cc, aa_hmax)
+            else:
+                left[i, j] = left[j, i]
+    if neq > na:  # fill for OK
+        left[na, :na] = unbias
+        left[:na, na] = unbias
+        left[na, na] = 0
+    return left
+
+@jit(nopython=True)
+def right_side(xa, ya, za, xdb, ydb, zdb, neq, unbias, rotmat, maxcov,
+               nst, it, cc, aa_hmax, c0):
+    na = len(xa)
+    ndb = len(xdb)
+    right = np.full((neq,), np.nan)
+    for i in xrange(na):
+        if ndb <= 1:
+            cb = cova3(
+                (xa[i], ya[i], za[i]),
+                (xdb[0], ydb[0], zdb[0]),
+                rotmat, maxcov, nst,
+                it, cc, aa_hmax)
+        else:
+            cb = 0
+            for j in xrange(ndb):
+                cov = cova3(
+                    (xa[i], ya[i], za[i]),
+                    (xdb[j], ydb[j], zdb[j]),
+                    rotmat, maxcov,
+                    nst, it, cc, aa_hmax)
+                cb += cov
+                dx = xa[i] - xdb[j]
+                dy = ya[i] - ydb[j]
+                dz = za[i] - zdb[j]
+                if dx*dx + dy*dy + dz*dz < 7./3-4./3-1:
+                    cb -= c0
+        cb /= ndb
+        right[i] = cb
+    if neq > na:
+        right[na:] = unbias
+    return right
+
+@jit(nopython=True)
 def sqdist(point1, point2, rotmat):
     """
     This routine calculates the anisotropic distance between two points
@@ -874,12 +853,41 @@ def sqdist(point1, point2, rotmat):
         sqdist += cont * cont
     return sqdist
 
+@jit(nopython=True)
+def cova3(point1, point2, rotmat, maxcov, nst, it, cc, aa_hmax):
+    """
+    Parameters
+    ----------
+    point1, point2: tuple of 3
+        coordinates of two points
 
-if __name__ == '__main__':
-    test_krige3d = Krige3d("testData/test_krige3d.par")
-    test_krige3d.read_data()
-#    test_krige3d.kt3d()
-#    test_krige3d.view2d()
-    import cProfile
-    cProfile.run("test_krige3d.kt3d()", sort='tottime', filename="profile_time.txt")
-#    test_krige3d.view2d()
+    Returns
+    -------
+    cova: scalar
+        covariance between (x1,y1,z1) and (x2,y2,z2)
+    """
+    # check for 'zero' distance, return maxcov if so:
+    hsqd = sqdist(point1, point2, rotmat[0])
+    if hsqd < 7./3-4./3-1:
+        cova = maxcov
+        return cova
+    # loop over all structures
+    cova = 0
+    for ist in xrange(nst):
+        if ist != 0:
+            hsqd = sqdist(point1, point2, rotmat[ist])
+        h = np.sqrt(hsqd)
+        if it[ist] == 1:  # Spherical
+            hr = h / aa_hmax[ist]
+            if hr < 1:
+                cova += cc[ist] * (1 - hr * (1.5 - 0.5 * hr * hr))
+        elif it[ist] == 2:  # Exponential
+            cova += cc[ist] * np.exp(-3.0 * h / aa_hmax[ist])
+        elif it[ist] == 3:  # Gaussian
+            cova += cc[ist] * \
+                np.exp(-3.0 * (h / aa_hmax[ist]) * (h/aa_hmax[ist]))
+        elif it[ist] == 4:  # Power
+            cova += maxcov - cc[ist] * (h**(aa_hmax[ist]))
+        elif it[ist] == 5:  # Hole Effect
+            cova += cc[ist] * np.cos(h / aa_hmax[ist] * np.pi)
+    return cova
