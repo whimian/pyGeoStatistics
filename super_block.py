@@ -7,7 +7,7 @@ Created on Tue Nov 22 2016
 from __future__ import division, print_function
 from itertools import izip, product
 import numpy as np
-# from numba import jit
+from numba import jit
 
 
 class SuperBlockSearcher(object):
@@ -84,9 +84,6 @@ class SuperBlockSearcher(object):
         # output sort_index
         self.sort_index = None
 
-    def _super_flat_index(self, ixsup, iysup, izsup):
-        return ixsup + iysup * self.nxsup + izsup * self.nxsup * self.nysup
-
     def setup(self):
         """
         Variables estimated
@@ -130,7 +127,7 @@ class SuperBlockSearcher(object):
         temp = np.zeros_like(self.vr['x'])
         self.nisb = np.zeros((self.nxsup*self.nysup*self.nzsup,))
         for idx, (ix, iy, iz) in enumerate(izip(x_index, y_index, z_index)):
-            ii = self._super_flat_index(ix, iy, iz)
+            ii = super_flat_index(ix, iy, iz, self.nxsup, self.nysup)
             temp[idx] = ii
             self.nisb[ii] += 1
 
@@ -157,27 +154,13 @@ class SuperBlockSearcher(object):
         self.ixsbtosr = list()
         self.iysbtosr = list()
         self.izsbtosr = list()
-        for i, j, k in product(xrange(-(self.nxsup-1), self.nxsup),
-                               xrange(-(self.nysup-1), self.nysup),
-                               xrange(-(self.nzsup-1), self.nzsup)):
-            xo = i * self.xsizsup
-            yo = j * self.ysizsup
-            zo = k * self.zsizsup
-            shortest = np.finfo(float).max
-            for i1, j1, k1 in product([-1, 1], [-1, 1], [-1, 1]):
-                for i2, j2, k2 in product([-1, 1], [-1, 1], [-1, 1]):
-                    xdis = (i1 - i2) * 0.5 * self.xsizsup + xo
-                    ydis = (j1 - j2) * 0.5 * self.ysizsup + yo
-                    zdis = (k1 - k2) * 0.5 * self.zsizsup + zo
-                    hsqd = sqdist((0, 0, 0), (xdis, ydis, zdis), self.rotmat)
-                    shortest = hsqd if hsqd < shortest else shortest
-            if shortest <= self.radsqd:
-                self.nsbtosr += 1
-                self.ixsbtosr.append(i)
-                self.iysbtosr.append(j)
-                self.izsbtosr.append(k)
+        float_max = np.finfo('float').max
+        self.nsbtosr, self.ixsbtosr, self.iysbtosr, self.izsbtosr = func_pickup(
+            self.nxsup, self.nysup, self.nzsup,
+            self.xsizsup, self.ysizsup, self.zsizsup,
+            self.rotmat, self.radsqd, float_max)
 
-    def search(self, xloc, yloc, zloc):
+    def search(self, xloc, yloc, zloc,):
         """
         Variables estimated
         -------------------
@@ -186,47 +169,19 @@ class SuperBlockSearcher(object):
         infoct           Number of informed octants (only computes if
                              performing an octant search)
         """
-        ix, iy, iz = self.getindx(xloc, yloc, zloc)
-        self.nclose = 0
-        self.close_samples = list()
-        distance = list()
-        # loop over all super blocks
-        for isup in xrange(self.nsbtosr):
-            ixsup = ix + self.ixsbtosr[isup]
-            iysup = iy + self.iysbtosr[isup]
-            izsup = iz + self.izsbtosr[isup]
-            if ixsup < 0 or ixsup >= self.nxsup or \
-                    iysup < 0 or iysup >= self.nysup or \
-                    izsup < 0 or izsup >= self.nzsup:
-                continue
-            # find number of points within this super block
-            ii = self._super_flat_index(ixsup, iysup, izsup)
-            i = None
-            if ii == 0:
-                nums = self.nisb[ii]
-                i = 0
-            else:
-                nums = self.nisb[ii] - self.nisb[ii - 1]
-                i = self.nisb[ii - 1]
-            # loop over all the data within this super block
-            for k in xrange(0, nums):
-                # hsqd = self.sqdist((xloc, yloc, zloc),
-                #                    (self.vr['x'][i], self.vr['y'][i],
-                #                     self.vr['z'][i]))
-                hsqd = sqdist((xloc, yloc, zloc),
-                                   (self.vr['x'][i], self.vr['y'][i],
-                                    self.vr['z'][i]), self.rotmat)
-                if hsqd > self.radsqd:
-                    continue
-                self.nclose += 1
-                self.close_samples.append(i)
-                distance.append(i)
-                i += 1
-        # sort nearby samples by distance
-        distance = np.array(distance)
-        self.close_samples = np.array(self.close_samples)
-        sort_index = np.argsort(distance)
-        self.close_samples = self.close_samples[sort_index]
+        ix, iy, iz = getindx(xloc, yloc, zloc,
+                             self.xmnsup, self.xsizsup, self.nxsup,
+                             self.ymnsup, self.ysizsup, self.nysup,
+                             self.zmnsup, self.zsizsup, self.nzsup)
+
+        self.nclose, self.close_samples = func_search(
+            xloc, yloc, zloc,
+            ix, iy, iz,
+            self.nsbtosr, self.ixsbtosr, self.iysbtosr, self.izsbtosr,
+            self.nxsup, self.nysup, self.nzsup,
+            self.nisb, self.rotmat, self.radsqd,
+            self.vr)
+        # perform octant search partition
         if self.noct <= 0:
             return
         else:  # partition the data into octant
@@ -268,32 +223,130 @@ class SuperBlockSearcher(object):
         # how many octants from which samples are drawn
         self.infoct = np.count_nonzero(inoct)
 
-    def getindx(self, xloc, yloc, zloc):
-        """
-        determine which superblock are the given point or list of points in
+@jit(nopython=True)
+def func_pickup(nxsup, nysup, nzsup,
+                xsizsup, ysizsup, zsizsup,
+                rotmat, radsqd, float_max):
+    nsbtosr = 0
+    ixsbtosr = []
+    iysbtosr = []
+    izsbtosr = []
+    # for i, j, k in product(xrange(-(nxsup-1), nxsup),
+    #                        xrange(-(nysup-1), nysup),
+    #                        xrange(-(nzsup-1), nzsup)):
+    for i in xrange(-(nxsup-1), nxsup):
+        for j in xrange(-(nysup-1), nysup):
+            for k in xrange(-(nzsup-1), nzsup):
+                xo = i * xsizsup
+                yo = j * ysizsup
+                zo = k * zsizsup
+                shortest = float_max
+                # for i1, j1, k1 in product([-1, 1], [-1, 1], [-1, 1]):
+                #     for i2, j2, k2 in product([-1, 1], [-1, 1], [-1, 1]):
+                for i1 in [-1, 1]:
+                    for j1 in [-1, 1]:
+                        for k1 in [-1, 1]:
+                            for i2 in [-1, 1]:
+                                for j2 in [-1, 1]:
+                                    for k2 in [-1, 1]:
+                                        xdis = (i1 - i2) * 0.5 * xsizsup + xo
+                                        ydis = (j1 - j2) * 0.5 * ysizsup + yo
+                                        zdis = (k1 - k2) * 0.5 * zsizsup + zo
+                                        hsqd = sqdist(
+                                            (0, 0, 0), (xdis, ydis, zdis),
+                                            rotmat)
+                                        shortest = hsqd if hsqd < shortest \
+                                            else shortest
+                if shortest <= radsqd:
+                    nsbtosr += 1
+                    ixsbtosr.append(i)
+                    iysbtosr.append(j)
+                    izsbtosr.append(k)
+    return nsbtosr, ixsbtosr, iysbtosr, izsbtosr
 
-        Parameters
-        ----------
-        xloc, yloc, zloc: scalar or 1-D ndarray
-        """
-        x_block = np.arange(self.xmnsup - 0.5 * self.xsizsup,
-                            self.xmnsup + (self.nxsup + 1) * self.xsizsup + 1,
-                            self.xsizsup)
-        x_index = np.searchsorted(x_block, xloc) - 1
+@jit(nopython=True)
+def func_search(xloc, yloc, zloc,
+                ix, iy, iz,
+                nsbtosr, ixsbtosr, iysbtosr, izsbtosr,
+                nxsup, nysup, nzsup,
+                nisb, rotmat, radsqd,
+                vr):
+    nclose = 0
+    close_samples = []
+    distance = []
+    # loop over all super blocks
+    for isup in xrange(nsbtosr):
+        ixsup = ix + ixsbtosr[isup]
+        iysup = iy + iysbtosr[isup]
+        izsup = iz + izsbtosr[isup]
+        if ixsup < 0 or ixsup >= nxsup or \
+                iysup < 0 or iysup >= nysup or \
+                izsup < 0 or izsup >= nzsup:
+            continue
+        # find number of points within this super block
+        ii = super_flat_index(ixsup, iysup, izsup, nxsup, nysup)
+        # ii = self._super_flat_index(ixsup, iysup, izsup)
+        i = 0
+        if ii == 0:
+            nums = nisb[ii]
+            i = 0
+        else:
+            nums = nisb[ii] - nisb[ii - 1]
+            i = nisb[ii - 1]
+        # loop over all the data within this super block
+        for k in xrange(0, nums):
+            # hsqd = self.sqdist((xloc, yloc, zloc),
+            #                    (self.vr['x'][i], self.vr['y'][i],
+            #                     self.vr['z'][i]))
+            hsqd = sqdist(
+                (xloc, yloc, zloc),
+                (vr['x'][i], vr['y'][i], vr['z'][i]),
+                # (vrx[i], vry[i], vrz[i]),
+                rotmat)
+            if hsqd > radsqd:
+                continue
+            nclose += 1
+            close_samples.append(i)
+            distance.append(i)
+            i += 1
+    # sort nearby samples by distance
+    distance = np.array(distance)
+    close_samples = np.array(close_samples)
+    sort_index = np.argsort(distance)
+    close_samples = close_samples[sort_index]
+    return nclose, close_samples
 
-        y_block = np.arange(self.ymnsup - 0.5 * self.ysizsup,
-                            self.ymnsup + (self.nysup + 1) * self.ysizsup + 1,
-                            self.ysizsup)
-        y_index = np.searchsorted(y_block, yloc) - 1
+@jit(nopython=True)
+def getindx(xloc, yloc, zloc,
+            xmnsup, xsizsup, nxsup,
+            ymnsup, ysizsup, nysup,
+            zmnsup, zsizsup, nzsup):
+    """
+    determine which superblock are the given point or list of points in
 
-        z_block = np.arange(self.zmnsup - 0.5 * self.zsizsup,
-                            self.zmnsup + (self.nzsup + 1) * self.zsizsup + 1,
-                            self.zsizsup)
-        z_index = np.searchsorted(z_block, zloc) - 1
+    Parameters
+    ----------
+    xloc, yloc, zloc: scalar or 1-D ndarray
+    """
+    x_block = np.arange(xmnsup - 0.5 * xsizsup,
+                        xmnsup + (nxsup + 1) * xsizsup + 1,
+                        xsizsup)
+    x_index = np.searchsorted(x_block, xloc) - 1
 
-        return (x_index, y_index, z_index)
+    y_block = np.arange(ymnsup - 0.5 * ysizsup,
+                        ymnsup + (nysup + 1) * ysizsup + 1,
+                        ysizsup)
+    y_index = np.searchsorted(y_block, yloc) - 1
 
-# @jit
+    z_block = np.arange(zmnsup - 0.5 * zsizsup,
+                        zmnsup + (nzsup + 1) * zsizsup + 1,
+                        zsizsup)
+    z_index = np.searchsorted(z_block, zloc) - 1
+
+    return x_index, y_index, z_index
+    # return None
+
+@jit(nopython=True)
 def sqdist(point1, point2, rotmat):
     """
     This routine calculates the anisotropic distance between two points
@@ -323,3 +376,7 @@ def sqdist(point1, point2, rotmat):
                rotmat[i, 2] * dz
         sqdist += cont * cont
     return sqdist
+
+@jit(nopython=True)
+def super_flat_index(ixsup, iysup, izsup, nxsup, nysup):
+    return ixsup + iysup * nxsup + izsup * nxsup * nysup
