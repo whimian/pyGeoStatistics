@@ -1,0 +1,84 @@
+{
+    "aa_hmax": [
+        3715.9
+    ], 
+    "aa_hmin": [
+        3715.9
+    ], 
+    "aa_vert": [
+        3715.9
+    ], 
+    "ang1": [
+        0
+    ], 
+    "ang2": [
+        0
+    ], 
+    "ang3": [
+        0
+    ], 
+    "c0": 0.05, 
+    "cc": [
+        0.65
+    ], 
+    "datafl": "testData/test.gslib", 
+    "dbgfl": "sgsim.dbg", 
+    "icollvm": 4, 
+    "icolsec": -1, 
+    "icolsvr": 0, 
+    "icolswt": 1, 
+    "icolvr": 2, 
+    "icolwt": -1, 
+    "icolx": 0, 
+    "icoly": 1, 
+    "icolz": -1, 
+    "idbg": 3, 
+    "ikrige": 0, 
+    "ismooth": false, 
+    "it": [
+        1
+    ], 
+    "itrans": true, 
+    "ltail": 1, 
+    "ltpar": 0, 
+    "multgrid": false, 
+    "mxctx": 30, 
+    "mxcty": 30, 
+    "mxctz": 30, 
+    "ndmax": 30, 
+    "ndmin": 1, 
+    "nmult": 2, 
+    "noct": 0, 
+    "nodmax": 12, 
+    "nsim": 1, 
+    "nst": 1, 
+    "nx": 98, 
+    "ny": 79, 
+    "nz": 1, 
+    "outfl": "sgsim.out", 
+    "radius_hmax": 4000, 
+    "radius_hmin": 4000, 
+    "radius_vert": 0, 
+    "rho": 0.7, 
+    "sang1": 0, 
+    "sang2": 0, 
+    "sang3": 0, 
+    "secfl": "ydata.dat", 
+    "seed": 1, 
+    "smthfl": "histsmth.out", 
+    "sstrat": 0, 
+    "tmax": 1e+21, 
+    "tmin": -1e+21, 
+    "transfl": "sgsim.trn", 
+    "utail": 1, 
+    "utpar": 15, 
+    "varred": 0.1, 
+    "xmn": 100, 
+    "xsiz": 200, 
+    "ymn": 100, 
+    "ysiz": 200, 
+    "zmax": 30, 
+    "zmin": 0, 
+    "zmn": 0, 
+    "zsiz": 200
+}

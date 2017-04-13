@@ -11,11 +11,12 @@ from itertools import izip, product
 import time
 from collections import namedtuple
 import numpy as np
+from numba import jit
 from scipy import linalg, interpolate
 import matplotlib.pyplot as plt
 from super_block import SuperBlockSearcher
-from nst import gauinv
-from normal_score_transform import NormalScoreTransform
+# from nst import gauinv
+from normal_score_transform import NormalScoreTransform, gauinv
 
 __author__ = "yuhao"
 
@@ -172,8 +173,8 @@ class Sgsim(object):
         #                            ['PMX', 'MAXNST', 'MAXDT', 'MAXSB',
         #                             'MAXDIS', 'MAXSAM', 'UNEST'])
         sgsim_const = namedtuple('sgsim_const',
-                                   ['PMX', 'MAXNST', 'MAXDT', 'MAXSB',
-                                    'MAXSAM', 'UNEST'])
+                                 ['PMX', 'MAXNST', 'MAXDT', 'MAXSB',
+                                  'MAXSAM', 'UNEST'])
         maxsbx = 1
         if self.nx > 1:
             maxsbx = int(self.nx/2)
@@ -217,13 +218,12 @@ class Sgsim(object):
                 self.tmpfl = self.smthfl
                 self.icolvr = self.isvr
                 self.icolwt = self.iswt
-            else:
+            else:  # data histogram, possibly with declustering weights is used for transformation.
                 self.tmpfl = self.datafl
                 self.icolvr = self.ivrl
                 self.icolwt = self.iwt
             # read in file for transformation table
             var = self._read_file(self.tmpfl)
-            column_names = var.dtype.names
             # check
             column_names = var.dtype.names
             vrtr = var[column_names[self.icolvr]]
@@ -232,7 +232,6 @@ class Sgsim(object):
             else:
                 vrgtr = var[column_names[self.icolwt]]
             # remove illegal data
-#            mask = vrtr >= self.tmin and vrtr < self.tmax and vrgtr > 0
             mask1 = vrtr >= self.tmin
             mask2 = vrtr < self.tmax
             mask3 = vrgtr > 0
@@ -247,13 +246,6 @@ class Sgsim(object):
             self.nst_primary = NormalScoreTransform(
                 vrtr, vrgtr, self.zmin, self.zmax, self.ltail, self.ltpar,
                 self.utail, self.utpar)
-            # # compute cumulative probabilities
-            # twt = np.sum(vrgtr)
-            # cp = np.cumsum(vrgtr / twt)
-            # oldcp = np.append(np.array([0]), cp[:-1])
-            # w = 0.5 * (cp + oldcp)
-            # # reset the weight to normal score value:
-            # vrgtr = gauinv(w)
             self.nst_primary.create_transform_func()
 
             # write transformation table to file
@@ -272,14 +264,7 @@ class Sgsim(object):
         if self.isecvr >= 0:
             self.sec = self.var[column_names[self.isecvr]]
         # normal score transform
-        # interp_func = None
         if self.itrans is True:
-        #     interp_func = interpolate.interp1d(
-        #         vrtr, vrgtr, kind='linear',
-        #         fill_value=(vrgtr[0], vrgtr[-1]))
-            # vrg = interp_func(self.vr)  # use interpolation to get normal score value
-            # self.vr = vrg  # give nst value to data.
-            # use interpolation to get normal score value
             vrg = self.nst_primary.transform(self.vr)
             self.vr = vrg  # give nst value to data.
 
@@ -348,7 +333,6 @@ class Sgsim(object):
 
         return (x_index, y_index, z_index)
 
-
     def _read_file(self, filename):
         "Read a simplified Geo-EAS formatted file."
         data_list = None
@@ -358,6 +342,7 @@ class Sgsim(object):
         ncols = int(data_list[1].strip())
         column_name = [item.strip() for item in data_list[2: ncols+2]]
         if 'z' not in column_name:
+            self.izl = -1
             column_name.append('z')
             data_list = [tuple(item.strip().split() + ['0'])
                          for item in data_list[ncols+2:]]
@@ -475,9 +460,13 @@ class Sgsim(object):
             jc = self.ncty + j
             zz = k * self.zsiz
             kc = self.nctz + k
-            cova = self._cova3((0, 0, 0), (xx, yy, zz))
+            # cova = self._cova3((0, 0, 0), (xx, yy, zz))
+            cova = cova3(
+                (0, 0, 0), (xx, yy, zz), self.rotmat,
+                self.maxcov, self.nst, self.it, self.cc, self.aa_hmax)
             self.covtab[ic, jc, kc] = cova
-            hsqd = self._sqdist((0, 0, 0), (xx, yy, zz), self.rotmat[-1])
+            # hsqd = self._sqdist((0, 0, 0), (xx, yy, zz), self.rotmat[-1])
+            hsqd = sqdist((0, 0, 0), (xx, yy, zz), self.rotmat[-1])
             if hsqd <= self.radsqd:
                 tmp.append(-(cova - tiny * hsqd))
                 order.append((ic, jc, kc))
@@ -492,7 +481,7 @@ class Sgsim(object):
         self.iynode = order['j']
         self.iznode = order['k']
 
-    def _srchnd(self, ix, iy, iz):
+    def _srchnd(self, ix, iy, iz, sim):
         """
         Search for nearby Simulated Grid nodes in a Spiral fashion.
 
@@ -522,60 +511,21 @@ class Sgsim(object):
         nxyz = nx * ny * nz
         UNEST = -99
 
-        # self.ncnode = 0
-        ncnode = 0
-        self.icnode = list() # the number in the lookup table
-        self.cnodex = list()
-        self.cnodey = list()
-        self.cnodez = list()
-        self.cnodev = list()
-        ninoct = np.zeros((8,))
         nlookup = self.ixnode.shape[0]
-        for il in xrange(0, nlookup):
-            if ncnode == self.nodmax:
-                return
-            # calculate location of point in simulation grid
-            i = ix + self.ixnode[il] - self.nctx - 1
-            j = iy + self.iynode[il] - self.ncty - 1
-            k = iz + self.iznode[il] - self.nctz - 1
-            # covaraince lookup table is large so we need to make sure the point is within the simulation grid.
-            if i < 0 or j < 0 or k < 0:
-                continue
-            if i > nx or j > ny or k > nz:
-                continue
-            ind = i + j * nx + k * nxy
-            if not np.isnan(self.sim[ind]):
-                # check the number of data already taken from this octant:
-                if self.noct > 0:
-                    idx = ix - i
-                    idy = iy - j
-                    idz = iz - k
-                    if idz > 0:
-                        iq = 3
-                        if idx <= 0 and idy > 0:
-                            iq = 0
-                        if idx > 0 and idy >= 0:
-                            iq = 1
-                        if idx < 0 and idy <= 0:
-                            iq = 2
-                    else:
-                        iq = 7
-                        if idx <= 0 and idy > 0:
-                            iq = 4
-                        if idx > 0 and idy >= 0:
-                            iq = 5
-                        if idx < 0 and idy <= 0:
-                            iq = 6
-                    ninoct[iq] += 1
-                    if ninoct[iq] > self.noct:
-                        continue
-                ncnode += 1
-                self.icnode.append(il)
-                self.cnodex.append(self.xmn + i * self.xsiz)
-                self.cnodey.append(self.ymn + j * self.ysiz)
-                self.cnodez.append(self.zmn + k * self.zsiz)
-                self.cnodev.append(self.sim[ind])
-        self.ncnode = ncnode
+
+
+        # ncnode, icnode, cnodex, cnodey, cnodez, cnodev = \
+        self.ncnode, self.icnode, self.cnodex, \
+        self.cnodey, self.cnodez, self.cnodev = \
+            search(ix, iy, iz,
+                   self.xmn, self.ymn, self.zmn,
+                   self.xsiz, self.ysiz, self.zsiz,
+                   nx, ny, nz, nxy,
+                   self.ixnode, self.iynode, self.iznode,
+                   self.nctx, self.ncty, self.nctz,
+                   sim,
+                   self.noct,
+                   nlookup, self.nodmax)
 
     def _krige(self, ix, iy, iz, xx, yy, zz, lktype):
         """
@@ -593,7 +543,7 @@ class Sgsim(object):
         # Size of the kriging system
         nxy = self.nx * self.ny
         nx = self.nx
-        first = False
+        # first = False
         na = self.searcher.nclose + self.ncnode  # sample points + simulated points
         if lktype == 0:  # simple kriging
             neq = na
@@ -614,104 +564,23 @@ class Sgsim(object):
         # Set up kriging matrices:
         # initialize coordination, data, secondary data lists
 
-        vra = list()
-        vrea = list()  # secondary data
-
-#        in_index = 0
-
-        left = np.full((neq, neq), np.nan)
-        right = list()
-        for j in xrange(0, na):
-            # sort out the actual location of point "j"
-            # if j <= self.nclose:
-            if j < self.searcher.nclose:
-                index = self.searcher.close_samples[j]
-                x1 = self.x[index]
-                y1 = self.y[index]
-                z1 = self.z[index]
-                vra.append(self.vr[index])
-                if lktype >= 2:
-                    vrea.append(self.sec[index])
-                if lktype == 2:
-                    vra[-1] -= vrea[-1]
-            # if it is a previously simulated node (keep index for table look-up)
-            else:
-                index = j - self.searcher.nclose
-                x1 = self.cnodex[index]
-                y1 = self.cnodey[index]
-                z1 = self.cnodez[index]
-                vra.append(self.cnodev)
-                ind = self.icnode[index]
-                ix1 = ix + self.ixnode[ind] - self.nctx - 1
-                iy1 = iy + self.iynode[ind] - self.ncty - 1
-                iz1 = iz + self.iznode[ind] - self.nctz - 1
-                index = ix1 + (iy1-1)*nx + (iz1-1)*nxy
-                if lktype >= 2:
-                    vrea.append(self.lvm[index])
-                if lktype == 2:
-                    vra[-1] -= vrea[-1]
-            for i in xrange(0, j+1):
-                if i < self.searcher.nclose:
-                    index = self.searcher.close_samples[i]
-                    x2 = self.x[index]
-                    y2 = self.y[index]
-                    z2 = self.z[index]
-                else:  # it's a previously simulated node (keep index for table look-up)
-                    index = i - self.searcher.nclose
-                    x2 = self.cnodex[index]
-                    y2 = self.cnodex[index]
-                    z2 = self.cnodez[index]
-                    ind = self.icnode[index]
-                    ix2 = ix + self.ixnode[ind] - self.nctx - 1
-                    iy2 = iy + self.iynode[ind] - self.ncty - 1
-                    iz2 = iz + self.iznode[ind] - self.nctz -1
-
-                if j <= self.searcher.nclose or i <= self.searcher.nclose:
-                    # calculate covariance value
-                    left[i, j] = self._cova3((x1, y1, z1), (x2, y2, z2))
-                else:
-                    # try to use lookup table if distance is in range.
-                    ii = self.nctx + 1 + (ix1 - ix2)
-                    jj = self.ncty + 1 + (iy1 - iy2)
-                    kk = self.nctz + 1 + (iz1 - iz2)
-                    if ii < 1 or ii > self.mxctx or \
-                        jj < 1 or jj > self.mxcty or \
-                        kk < 1 or kk > self.mxctz:
-                        left[i, j] = self._cova3((x1, y1, z1), (x2, y2, z2))
-                    else:
-                        left[i, j] = self.covtab[ii, jj, kk]
-            # calculate right side value:
-            if j < self.searcher.nclose:
-                right.append(self._cova3((xx, yy, zz), (x1, y1, z1)))
-            else:
-                # try to use lookup table if distance is in range.
-                ii = self.nctx + 1 + (ix1 - ix2)
-                jj = self.ncty + 1 + (iy1 - iy2)
-                kk = self.nctz + 1 + (iz1 - iz2)
-                if ii < 1 or ii > self.mxctx or \
-                    jj < 1 or jj > self.mxcty or \
-                    kk < 1 or kk > self.mxctz:
-                    right.append(self._cova3((xx, yy, zz), (x1, y1, z1)))
-                else:
-                    right.append(self.covtab[ii, jj, kk])
-        # fill void elements of left matrix:
-        for i, j in product(xrange(na), xrange(na)):
-            if np.isnan(left[i, j]):
-                left[i, j] = left[j, i]
-
-        # Addition of OK constraint:
-        if lktype == 1 or lktype == 3:
-            right.append(1)
-            left[neq, :neq] = 1  # self.unbias
-            left[:neq, neq] = 1  # self.unbias
-            left[neq, neq] = 0
-        # Addition of the External Drift Constraint:
-        # not implemented
-        # Addition of Collocated Cosimulation Constraint:
-        # not implemented
+        vra = np.full((na,), np.nan)
+        left, right = krige_matrix(
+            lktype, ix, iy, iz,
+            xx, yy, zz,
+            vra,
+            na, neq, nx, nxy,
+            self.searcher.nclose, self.searcher.close_samples,
+            self.x, self.y, self.z, self.vr,
+            self.cnodex, self.cnodey, self.cnodez, self.cnodev, self.icnode,
+            self.ixnode, self.iynode, self.iznode,
+            self.nctx, self.ncty, self.nctz,
+            self.mxctx, self.mxcty, self.mxctz,
+            self.rotmat, self.maxcov, self.nst, self.it, self.cc, self.aa_hmax,
+            self.covtab)
+        # vrea = np.full((na,), np.nan)  # secondary data
 
         # Solve kriging system
-        right = np.array(right)
         s = None
         try:
             s = linalg.solve(left, right)
@@ -735,79 +604,6 @@ class Sgsim(object):
             cstdev -= 2*s[-1]
 
         return cmean, cstdev
-
-    def _cova3(self, point1, point2):
-        """
-        Parameters
-        ----------
-        point1, point2: tuple of 3
-            coordinates of two points
-
-        Returns
-        -------
-        cova: scalar
-            covariance between (x1,y1,z1) and (x2,y2,z2)
-        """
-        # check for 'zero' distance, return maxcov if so:
-        hsqd = self._sqdist(point1, point2, self.rotmat[0])
-        if hsqd < np.finfo(float).eps:
-            cova = self.maxcov
-            return cova
-        # loop over all structures
-        cova = 0
-        for ist in xrange(self.nst):
-            if ist != 1:
-                hsqd = self._sqdist(point1, point2, self.rotmat[ist])
-            h = np.sqrt(hsqd)
-            if self.it[ist] == 1:  # Spherical
-                hr = h / self.aa_hmax[ist]
-                if hr < 1:
-                    cova += self.cc[ist] * (1 - hr * (1.5 - 0.5 * hr * hr))
-            elif self.it[ist] == 2:  # Exponential
-                cova += self.cc[ist] * np.exp(-3.0 * h / self.aa_hmax[ist])
-            elif self.it[ist] == 3:  # Gaussian
-                cova += self.cc[ist] * \
-                        np.exp(-3.0 * (h / self.aa_hmax[ist]) *
-                               (h/self.aa_hmax[ist]))
-            elif self.it[ist] == 4:  # Power
-                cova += self.maxcov - self.cc[ist] * (h**(self.aa_hmax[ist]))
-            elif self.it[ist] == 5:  # Hole Effect
-                cova += self.cc[ist] * np.cos(h / self.aa_hmax[ist] * np.pi)
-        return cova
-
-    def _sqdist(self, point1, point2, rotmat):
-        """
-        This routine calculates the anisotropic distance between two points
-        given the coordinates of each point and a definition of the
-        anisotropy.
-
-        This method only consider a single anisotropy senario.
-
-        Parameters
-        ----------
-        point1 : tuple
-            Coordinates of first point (x1,y1,z1)
-        point2 : tuple
-            Coordinates of second point (x2,y2,z2)
-        rotmat : 3*3 ndarray
-            matrix of rotation for this structure
-
-        Returns
-        -------
-        sqdist : scalar
-            The squared distance accounting for the anisotropy
-            and the rotation of coordinates (if any).
-        """
-        dx = point1[0] - point2[0]
-        dy = point1[1] - point2[1]
-        dz = point1[2] - point2[2]
-        sqdist = 0.0
-        for i in xrange(3):
-            cont = rotmat[i, 0] * dx + \
-                   rotmat[i, 1] * dy + \
-                   rotmat[i, 2] * dz
-            sqdist += cont * cont
-        return sqdist
 
     def _max_covariance(self):
         '''
@@ -862,7 +658,7 @@ class Sgsim(object):
             sort_index = np.argsort(sim)
             order = order[sort_index]  # simulation path
 
-            print("Working on realization {}".format(isim))
+            print("Working on realization {}".format(isim + 1))
             # GRID NODE data assignment
             TINY = 0.0001
             UNEST = -99
@@ -923,8 +719,8 @@ class Sgsim(object):
                     if self.searcher.nclose < self.ndmin:
                         continue
                     if self.searcher.nclose > self.ndmax:
-                        self.nclose = self.ndmax
-                self._srchnd(ix, iy, iz) # spiral search on the covariance lookup table
+                        self.searcher.nclose = self.ndmax
+                self._srchnd(ix, iy, iz, sim) # spiral search on the covariance lookup table
                 # calculate the conditional mean and standard deviation
                 # this will be done with kriging if there are data,
                 # otherwise, the glocal mean and standard deviation will be used.
@@ -945,16 +741,15 @@ class Sgsim(object):
                 p = np.random.rand()
                 xp = gauinv(p)
                 sim[index] = xp * cstdev + cmean
-                   
                 percent = np.round(igrid/nxyz*100, decimals=0)
                 dtime = time.time() - t1
-                if percent != percent_od:
+                if percent != percent_od and percent % 10 == 0:
                     print("{}% ".format(percent) +\
                       "."*20 + "{}s elapsed.".format(np.round(dtime, decimals=3)))
                 percent_od = percent
             # END MAIN LOOP
 
-            #do we need to reassign the data to the grid nodes?
+            # do we need to reassign the data to the grid nodes?
             if self.sstrat == 0:
                 for idx in xrange(nd):
                     if test[idx] <= TINY:
@@ -970,12 +765,12 @@ class Sgsim(object):
                 sim[mask] = self.zmax
 
             # save this simulation in file
-            np.save('simulations/sim_{}'.format(isim), sim)
+            np.save('simulations/sim_{}'.format(isim+1), sim)
 
     def view2d(self):
         "View 2D data using matplotlib"
         for file_name in os.listdir("simulations/"):
-            estimation = np.load("simulations/{}".format(file_name))        
+            estimation = np.load("simulations/{}".format(file_name))
             fig, ax = plt.subplots()
             im = ax.imshow(estimation.reshape(self.ny, self.nx),
                            interpolation='nearest',
@@ -984,7 +779,7 @@ class Sgsim(object):
                                    self.xmn + (self.nx - 1)*self.xsiz,
                                    self.ymn,
                                    self.ymn + (self.ny - 1)*self.ysiz],
-                     cmap='jet')
+                           cmap='jet')
             ax.set_xlabel("X (m)")
             ax.set_ylabel("Y (m)")
             ax.set_title("Estimation")
@@ -996,9 +791,275 @@ class Sgsim(object):
         "View 3D data using mayavi"
         pass
 
-if __name__ == '__main__':
-    test_sgsim = Sgsim("testData/test_sgsim.par")
-#    test_sgsim.simulate()
-    import cProfile
-    cProfile.run('test_sgsim.simulate()', sort='cumtime')
-    test_sgsim.view2d()
+@jit(nopython=True)
+def sqdist(point1, point2, rotmat):
+    """
+    This routine calculates the anisotropic distance between two points
+    given the coordinates of each point and a definition of the
+    anisotropy.
+
+    This method only consider a single anisotropy senario.
+
+    Parameters
+    ----------
+    point1 : tuple
+        Coordinates of first point (x1,y1,z1)
+    point2 : tuple
+        Coordinates of second point (x2,y2,z2)
+    rotmat : 3*3 ndarray
+        matrix of rotation for this structure
+
+    Returns
+    -------
+    sqdist : scalar
+        The squared distance accounting for the anisotropy
+        and the rotation of coordinates (if any).
+    """
+    dx = point1[0] - point2[0]
+    dy = point1[1] - point2[1]
+    dz = point1[2] - point2[2]
+    sqdist = 0.0
+    for i in xrange(3):
+        cont = rotmat[i, 0] * dx + \
+                rotmat[i, 1] * dy + \
+                rotmat[i, 2] * dz
+        sqdist += cont * cont
+    return sqdist
+
+@jit(nopython=True)
+def cova3(point1, point2, rotmat, maxcov, nst, it, cc, aa_hmax):
+    """
+    Parameters
+    ----------
+    point1, point2: tuple of 3
+        coordinates of two points
+
+    Returns
+    -------
+    cova: scalar
+        covariance between (x1,y1,z1) and (x2,y2,z2)
+    """
+    # check for 'zero' distance, return maxcov if so:
+    # hsqd = self._sqdist(point1, point2, self.rotmat[0])
+    hsqd = sqdist(point1, point2, rotmat[0])
+    if hsqd < 7./3-4./3-1:
+        cova = maxcov
+        return cova
+    # loop over all structures
+    cova = 0
+    for ist in xrange(nst):
+        if ist != 0:
+            # hsqd = self._sqdist(point1, point2, self.rotmat[ist])
+            hsqd = sqdist(point1, point2, rotmat[ist])
+        h = np.sqrt(hsqd)
+        if it[ist] == 1:  # Spherical
+            hr = h / aa_hmax[ist]
+            if hr < 1:
+                cova += cc[ist] * (1 - hr * (1.5 - 0.5 * hr * hr))
+        elif it[ist] == 2:  # Exponential
+            cova += cc[ist] * np.exp(-3.0 * h / aa_hmax[ist])
+        elif it[ist] == 3:  # Gaussian
+            cova += cc[ist] * \
+                    np.exp(-3.0 * (h / aa_hmax[ist]) * (h/aa_hmax[ist]))
+        elif it[ist] == 4:  # Power
+            cova += maxcov - cc[ist] * (h**(aa_hmax[ist]))
+        elif it[ist] == 5:  # Hole Effect
+            cova += cc[ist] * np.cos(h / aa_hmax[ist] * np.pi)
+    return cova
+
+@jit(nopython=True)
+def search(ix, iy, iz,
+           xmn, ymn, zmn,
+           xsiz, ysiz, zsiz,
+           nx, ny, nz, nxy,
+           ixnode, iynode, iznode,
+           nctx, ncty, nctz,
+           sim,
+           noct,
+           nlookup, nodmax):
+    ncnode = 0
+    icnode = [] # the number in the lookup table
+    cnodex = []
+    cnodey = []
+    cnodez = []
+    cnodev = []
+    ninoct = np.zeros((8,))
+
+    for il in xrange(0, nlookup):
+        if ncnode == nodmax:
+            return
+        # calculate location of point in simulation grid
+        i = ix + ixnode[il] - nctx - 1
+        j = iy + iynode[il] - ncty - 1
+        k = iz + iznode[il] - nctz - 1
+        # covaraince lookup table is large so we need to make sure
+        # the point is within the simulation grid.
+        if i < 0 or j < 0 or k < 0:
+            continue
+        if i > nx or j > ny or k > nz:
+            continue
+        ind = i + j * nx + k * nxy
+        if not np.isnan(sim[ind]):
+            # check the number of data already taken from this octant:
+            if noct > 0:
+                idx = ix - i
+                idy = iy - j
+                idz = iz - k
+                if idz > 0:
+                    iq = 3
+                    if idx <= 0 and idy > 0:
+                        iq = 0
+                    if idx > 0 and idy >= 0:
+                        iq = 1
+                    if idx < 0 and idy <= 0:
+                        iq = 2
+                else:
+                    iq = 7
+                    if idx <= 0 and idy > 0:
+                        iq = 4
+                    if idx > 0 and idy >= 0:
+                        iq = 5
+                    if idx < 0 and idy <= 0:
+                        iq = 6
+                ninoct[iq] += 1
+                if ninoct[iq] > noct:
+                    continue
+            ncnode += 1
+            icnode.append(il)
+            cnodex.append(xmn + i * xsiz)
+            cnodey.append(ymn + j * ysiz)
+            cnodez.append(zmn + k * zsiz)
+            cnodev.append(sim[ind])
+    icnode_a = np.array(icnode)
+    cnodex_a = np.array(cnodex)
+    cnodey_a = np.array(cnodey)
+    cnodez_a = np.array(cnodez)
+    cnodev_a = np.array(cnodev)
+    return ncnode, icnode_a, cnodex_a, cnodey_a, cnodez_a, cnodev_a
+
+@jit(nopython=True)
+def krige_matrix(lktype, ix, iy, iz,
+                 xx, yy, zz,
+                 vra, na, neq, nx, nxy,
+                 nclose, close_samples,
+                 x, y, z, vr,
+                 cnodex, cnodey, cnodez, cnodev, icnode,
+                 ixnode, iynode, iznode,
+                 nctx, ncty, nctz,
+                 mxctx, mxcty, mxctz,
+                 rotmat, maxcov, nst, it, cc, aa_hmax,
+                 covtab):
+    left = np.full((neq, neq), np.nan)
+    right = np.full((neq,), np.nan)
+    for j in xrange(na):
+        # sort out the actual location of point "j"
+        # if j <= self.nclose:
+        if j < nclose:
+            index = close_samples[j]
+            x1 = x[index]
+            y1 = y[index]
+            z1 = z[index]
+            vra[j] = vr[index]
+            # if lktype >= 2:
+            #     vrea[j] = self.sec[index]
+            # if lktype == 2:
+            #     vra[j] -= vrea[j]
+        # if it is a previously simulated node (keep index for table look-up)
+        else:
+            index = j - nclose
+            x1 = cnodex[index]
+            y1 = cnodey[index]
+            z1 = cnodez[index]
+            vra[j] = cnodev[index]
+            ind = icnode[index]
+            ix1 = ix + ixnode[ind] - nctx - 1
+            iy1 = iy + iynode[ind] - ncty - 1
+            iz1 = iz + iznode[ind] - nctz - 1
+            index = ix1 + (iy1-1)*nx + (iz1-1)*nxy
+            # if lktype >= 2:
+            #     vrea[j] = lvm[index]
+            # if lktype == 2:
+            #     vra[j] -= vrea[j]
+        for i in xrange(j+1):
+            if i < nclose:
+                index = close_samples[i]
+                x2 = x[index]
+                y2 = y[index]
+                z2 = z[index]
+            else:  # it's a previously simulated node (keep index for table look-up)
+                index = i - nclose
+                x2 = cnodex[index]
+                y2 = cnodex[index]
+                z2 = cnodez[index]
+                ind = icnode[index]
+                ix2 = ix + ixnode[ind] - nctx - 1
+                iy2 = iy + iynode[ind] - ncty - 1
+                iz2 = iz + iznode[ind] - nctz -1
+
+            if j <= nclose or i <= nclose:
+                # calculate covariance value
+                # left[i, j] = self._cova3((x1, y1, z1), (x2, y2, z2))
+                left[i, j] = cova3(
+                    (x1, y1, z1), (x2, y2, z2), rotmat,
+                    maxcov, nst, it, cc, aa_hmax)
+            else:
+                # try to use lookup table if distance is in range.
+                # ii = self.nctx + 1 + (ix1 - ix2)
+                # jj = self.ncty + 1 + (iy1 - iy2)
+                # kk = self.nctz + 1 + (iz1 - iz2)
+                ii = nctx + (ix1 - ix2)
+                jj = ncty + (iy1 - iy2)
+                kk = nctz + (iz1 - iz2)
+                if ii < 0 or ii > mxctx or \
+                    jj < 0 or jj > mxcty or \
+                    kk < 0 or kk > mxctz:
+                    # left[i, j] = self._cova3((x1, y1, z1), (x2, y2, z2))
+                    left[i, j] = cova3(
+                        (x1, y1, z1), (x2, y2, z2), rotmat,
+                        maxcov, nst, it, cc,
+                        aa_hmax)
+                else:
+                    left[i, j] = covtab[ii, jj, kk]
+        # calculate right side value:
+        if j < nclose:
+            # right.append(_cova3((xx, yy, zz), (x1, y1, z1)))
+            right[j] = cova3(
+                (xx, yy, zz), (x1, y1, z1), rotmat,
+                maxcov, nst, it, cc, aa_hmax)
+        else:
+            # try to use lookup table if distance is in range.
+            # ii = nctx + 1 + (ix1 - ix2)
+            # jj = ncty + 1 + (iy1 - iy2)
+            # kk = nctz + 1 + (iz1 - iz2)
+            ii = nctx + (ix1 - ix2)
+            jj = ncty + (iy1 - iy2)
+            kk = nctz + (iz1 - iz2)
+            if ii < 0 or ii > mxctx or \
+                jj < 0 or jj > mxcty or \
+                kk < 0 or kk > mxctz:
+                # right.append(_cova3((xx, yy, zz), (x1, y1, z1)))
+                right[i] = cova3(
+                    (xx, yy, zz), (x1, y1, z1), rotmat,
+                    maxcov, nst, it, cc,
+                    aa_hmax)
+
+            else:
+                right[i] = covtab[ii, jj, kk]
+    # fill void elements of left matrix:
+    # for i, j in product(xrange(na), xrange(na)):
+    for i in xrange(na):
+        for j in xrange(na):
+            if np.isnan(left[i, j]):
+                left[i, j] = left[j, i]
+
+    # Addition of OK constraint:
+    if lktype == 1 or lktype == 3:
+        right[neq:] = 1
+        left[neq, :neq] = 1  # self.unbias
+        left[:neq, neq] = 1  # self.unbias
+        left[neq, neq] = 0
+    # Addition of the External Drift Constraint:
+    # not implemented
+    # Addition of Collocated Cosimulation Constraint:
+    # not implemented
+    return left, right
