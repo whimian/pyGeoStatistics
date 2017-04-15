@@ -153,8 +153,8 @@ class Sgsim(object):
                 raise ValueError("Power model is not allowed.")
         # check for sill
         self.sill = self.c0 + np.sum(self.cc)
-        if self.sill != 0:
-            print("warning: sill is not 1.")
+        if self.sill != 1:
+            print("Warning: Sill is not 1. ({})".format(self.sill))
         # check tail interpolation parameters
         if self.ltail not in [1, 2]:
             raise ValueError("invalid lower tail option")
@@ -510,11 +510,8 @@ class Sgsim(object):
         nxy = nx * ny
         nxyz = nx * ny * nz
         UNEST = -99
-
         nlookup = self.ixnode.shape[0]
 
-
-        # ncnode, icnode, cnodex, cnodey, cnodez, cnodev = \
         self.ncnode, self.icnode, self.cnodex, \
         self.cnodey, self.cnodez, self.cnodev = \
             search(ix, iy, iz,
@@ -563,7 +560,6 @@ class Sgsim(object):
                 lktype = 0
         # Set up kriging matrices:
         # initialize coordination, data, secondary data lists
-
         vra = np.full((na,), np.nan)
         left, right = krige_matrix(
             lktype, ix, iy, iz,
@@ -618,6 +614,9 @@ class Sgsim(object):
                 self.maxcov += self.cc[ist]
 
     def simulate(self):
+        """
+        Simulate
+        """
         print("Preparing...")
         self._preprocess()
         self._read_data()
@@ -840,7 +839,6 @@ def cova3(point1, point2, rotmat, maxcov, nst, it, cc, aa_hmax):
         covariance between (x1,y1,z1) and (x2,y2,z2)
     """
     # check for 'zero' distance, return maxcov if so:
-    # hsqd = self._sqdist(point1, point2, self.rotmat[0])
     hsqd = sqdist(point1, point2, rotmat[0])
     if hsqd < 7./3-4./3-1:
         cova = maxcov
