@@ -7,19 +7,22 @@ a polynomial trend model (KT) with up to nine monomial terms.
 
 Created on Tue Nov 22 2016
 """
-from __future__ import division, print_function, absolute_import
+from __future__ import absolute_import, division, print_function
+
+__author__ = "yuhao"
+
 import json
-from itertools import izip, product
 import time
 from collections import namedtuple
+from itertools import izip, product
+
+import matplotlib.pyplot as plt
 import numpy as np
 from numba import jit
 from scipy import linalg
-import matplotlib.pyplot as plt
-from super_block import SuperBlockSearcher
 
+from .super_block import SuperBlockSearcher
 
-__author__ = "yuhao"
 
 class Krige3d(object):
     """

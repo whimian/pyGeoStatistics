@@ -4,21 +4,24 @@ Sequential Gaussian Simulation
 
 Created on Sun Dec 4 2016
 """
-from __future__ import division, print_function, absolute_import
-import os
-import json
-from itertools import izip, product
-import time
-from collections import namedtuple
-import numpy as np
-from numba import jit
-from scipy import linalg, interpolate
-import matplotlib.pyplot as plt
-from super_block import SuperBlockSearcher
-# from nst import gauinv
-from normal_score_transform import NormalScoreTransform, gauinv
+from __future__ import absolute_import, division, print_function
 
 __author__ = "yuhao"
+
+import json
+import os
+import time
+from collections import namedtuple
+from itertools import izip, product
+
+import matplotlib.pyplot as plt
+import numpy as np
+from numba import jit
+from scipy import interpolate, linalg
+
+from .normal_score_transform import NormalScoreTransform, gauinv
+from .super_block import SuperBlockSearcher
+
 
 class Sgsim(object):
     """
