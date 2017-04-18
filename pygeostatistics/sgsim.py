@@ -767,7 +767,9 @@ class Sgsim(object):
                 sim[mask] = self.zmax
 
             # save this simulation in file
-            np.save('simulations/sim_{}'.format(isim+1), sim)
+            parent_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.pardir)
+            sim_dir = os.path.join(parent_dir, 'simulations')
+            np.save(os.path.join(sim_dir, 'sim_{}'.format(isim+1)), sim)
 
     def view2d(self):
         "View 2D data using matplotlib"
