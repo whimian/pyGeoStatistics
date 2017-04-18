@@ -32,7 +32,7 @@ class EDA():
         ncols = int(data_list[1].strip())
         column_name = [item.strip() for item in data_list[2: ncols+2]]
         self.property_name = [item for item in column_name
-                         if item not in ['x', 'y', 'z']]
+                              if item not in ['x', 'y', 'z']]
         if 'z' not in column_name:
             self._2d = True
             column_name.append('z')
@@ -53,6 +53,7 @@ class EDA():
         ax.set_title("pdf")
         plt.bar(bin_edges[:-1], hist, width=bin_edges[1]-bin_edges[0],
                 color='red', alpha=0.5)
+        fig.show()
 
     def cdf(self):
         data = self.vr[self.property_name[0]]
@@ -61,6 +62,7 @@ class EDA():
         fig, ax = plt.subplots()
         ax.set_title("cdf")
         ax.plot(data, cdf)
+        fig.show()
 
     @property
     def maximum(self):
@@ -136,11 +138,9 @@ class EDA():
         print("X: {} - {}".format(np.min(self.vr['x']), np.max(self.vr['x'])))
         print("Y: {} - {}".format(np.min(self.vr['y']), np.max(self.vr['y'])))
         if self._2d is False:
-            print("Z: {} - {}".format(np.min(self.vr['x']), 
-                                     np.max(self.vr['x'])))
-        
-        
-        
+            print("Z: {} - {}".format(np.min(self.vr['z']),
+                                      np.max(self.vr['z'])))
+
     def view2d(self, pname=None):
         pname = self.property_name[0] if pname is None else pname
         if self._2d is False:
@@ -149,15 +149,13 @@ class EDA():
             fig, ax = plt.subplots()
             abscissa = self.vr['x']
             ordinate = self.vr['y']
-            sc = ax.scatter(abscissa, ordinate, c=self.vr[pname], 
-                            cmap='rainbow')
-            ax.set_xlim(left=np.min(abscissa), right=np.max(abscissa))
-            ax.set_ylim(bottom=np.min(ordinate), top=np.max(ordinate))
-            ax.set_xlabel("X (m)")
-            ax.set_ylabel("Y (m)")
-            ax.set_axis_bgcolor('black')
-            ax.set_title("Data Scatter")
-            ax.set_aspect('equal')
+            sc = ax.scatter(abscissa, ordinate, c=self.vr[pname],
+                            cmap='jet')
+            ax.set(xlim=(np.min(abscissa), np.max(abscissa)),
+                   ylim=(np.min(ordinate), np.max(ordinate)),
+                   xlabel="X (m)", ylabel="Y (m)",
+                   title="Data Scatter", aspect='equal',
+                   facecolor='grey')
             fig.colorbar(sc)
             fig.show()
 
