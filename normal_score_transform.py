@@ -95,7 +95,6 @@ class NormalScoreTransform(object):
         lo_score = self.transform_table['score'][0]
         up_score = self.transform_table['score'][-1]
         # scores in normal range
-        # normal_mask = scores <= up_score and scores >= lo_score
         normal_mask = np.logical_and(scores <= up_score, scores >= lo_score)
         normal_scores = scores[normal_mask]
         values[normal_mask] = self.back_func(normal_scores)
@@ -170,8 +169,10 @@ def gauinv(p):
     q3 = 0.103537752850
     q4 = 0.0038560700634
     # check for an error situation
-    if p < lim or p > 1-lim:
-        return np.nan
+    if p < lim:
+        return -1e10
+    if p > 1 - lim:
+        return 1e10
     pp = p
     if p > 0.5:
         pp = 1 - pp
@@ -203,6 +204,7 @@ def gcum(x):
     else:
         return 1.0 - gcum
 
+@jit(nopython=True)
 def powint(xlow, xhigh, ylow, yhigh, value, power):
     "power interpolation"
     if xhigh-xlow < np.finfo(float).eps:
