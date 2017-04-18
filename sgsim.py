@@ -770,6 +770,7 @@ class Sgsim(object):
         "View 2D data using matplotlib"
         for file_name in os.listdir("simulations/"):
             estimation = np.load("simulations/{}".format(file_name))
+            fn, ext = os.path.splitext(file_name)
             fig, ax = plt.subplots()
             im = ax.imshow(estimation.reshape(self.ny, self.nx),
                            interpolation='nearest',
@@ -779,12 +780,45 @@ class Sgsim(object):
                                    self.ymn,
                                    self.ymn + (self.ny - 1)*self.ysiz],
                            cmap='jet')
-            ax.set_xlabel("X (m)")
-            ax.set_ylabel("Y (m)")
-            ax.set_title("Estimation")
-            ax.set_aspect('equal')
+            ax.set(xlabel="X (m)", ylabel="Y (m)",
+                   title="Realization {}".format(fn), aspect='equal')
             fig.colorbar(im)
             fig.show()
+
+            fig2, ax2 = plt.subplots()
+            hist, bin_edges = np.histogram(estimation, bins=20)
+            ax2.set_title("Histogram {}".format(fn))
+            ax2.bar(bin_edges[:-1], hist, width=bin_edges[1]-bin_edges[0],
+                    color='red', alpha=0.5)
+            fig2.show()
+
+    def average(self):
+        result = np.zeros((self.nx * self.ny, ))
+        for file_name in os.listdir("simulations/"):
+            estimation = np.load("simulations/{}".format(file_name))
+            result += estimation
+        result /= 100
+        fn, ext = os.path.splitext(file_name)
+        fig, ax = plt.subplots()
+        im = ax.imshow(result.reshape(self.ny, self.nx),
+                       interpolation='nearest',
+                       origin='lower',
+                       extent=[self.xmn,
+                               self.xmn + (self.nx - 1)*self.xsiz,
+                               self.ymn,
+                               self.ymn + (self.ny - 1)*self.ysiz],
+                       cmap='jet')
+        ax.set(xlabel="X (m)", ylabel="Y (m)",
+               title="Average", aspect='equal')
+        fig.colorbar(im)
+        fig.show()
+
+        fig2, ax2 = plt.subplots()
+        hist, bin_edges = np.histogram(result, bins=20)
+        ax2.set_title("Histogram")
+        ax2.bar(bin_edges[:-1], hist, width=bin_edges[1]-bin_edges[0],
+                color='red', alpha=0.5)
+        fig2.show()
 
     def view3d(self):
         "View 3D data using mayavi"
