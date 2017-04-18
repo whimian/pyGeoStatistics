@@ -362,9 +362,9 @@ class Krige3d(object):
                 # rescalling factor for external drift variable
                 self.resce = self.maxcov / max(self.extest, 0.0001)
             # Search for proximity data
-            ts_1 = time.time()
+            # ts_1 = time.time()
             self.searcher.search(xloc, yloc, zloc)
-            ts += time.time() - ts_1
+            # ts += time.time() - ts_1
             # load nearest data in xa, ya, za, vra, vea
             xa = list()
             ya = list()
@@ -428,7 +428,7 @@ class Krige3d(object):
                   "."*20 + "{}s elapsed.".format(np.round(dtime, decimals=3)))
             percent_od = percent
         print("Kriging Finished.")
-        print("Time used for searching: {}s".format(ts))
+        # print("Time used for searching: {}s".format(ts))
 
     def _rescaling(self):
         if self.radsqd < 1:
