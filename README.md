@@ -1,7 +1,7 @@
 # pyGeoStatistics
 
 A collection of python routines and jupyter notebooks for geostatistics,
-which is immensely inspired by ancient gslib (in Fortran).
+which is immensely inspired by gslib (in Fortran).
 
 **Caution:** its development just started, hence super buggy.
 
@@ -9,7 +9,7 @@ which is immensely inspired by ancient gslib (in Fortran).
 
 - `eda.py`: exploratory data anaylysis.
 
-- [`nst.py`](#normal-ncore-transform-nstpy): apply normal score transform to data.
+- [`nst.py`](#normal-score-transform-nstpy): apply normal score transform to data.
 
 - `gam.py`: calculate variogram for regular data.
 
@@ -17,7 +17,7 @@ which is immensely inspired by ancient gslib (in Fortran).
 
 - `sa.ipynb`: interactive structural analysis.
 
-- [`krige2d.py`](#3d-kriging-krige2dpy): kriging 2d data.
+- [`krige2d.py`](#2d-kriging-krige2dpy): kriging 2d data.
 
     - Simple Kriging
     - Ordinary Kriging
@@ -30,6 +30,8 @@ which is immensely inspired by ancient gslib (in Fortran).
     - Kriging the Trend
     - Kriging with External drift
     - SK with non-stationary drift
+
+- ['sgsim.py'](#sgsimpy): Sequential Gaussian Simulation.
 
 # Other Utilities
 
@@ -95,3 +97,5 @@ validation.
     performed.
     - Note that power law variogram models (`it`=4) are not allowed with
     simple kriging.
+
+# Sequential Gaussian Simulation (sgsim.py)
