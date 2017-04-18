@@ -773,6 +773,8 @@ class Sgsim(object):
 
     def view2d(self):
         "View 2D data using matplotlib"
+        sim_dir = os.path.join(os.path.join(os.path.dirname(
+            os.path.abspath(__file__)), os.path.pardir), 'simulations')
         for file_name in os.listdir("simulations/"):
             estimation = np.load("simulations/{}".format(file_name))
             fn, ext = os.path.splitext(file_name)
