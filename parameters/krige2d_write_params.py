@@ -2,11 +2,12 @@
 """
 Created on Fri Nov 2016
 """
-import json
-
 __author__ = "yuhao"
 
-params = {
+import os
+import json
+
+PARAMS = {
     'datafl': 'testData/test.gslib',
     'icolx': 0,
     'icoly': 1,
@@ -38,5 +39,8 @@ params = {
     'a_min': [3715.9]
 }
 
-with open('testData/test_krige2d.par', 'w') as fout:
-    fout.write(json.dumps(params, sort_keys=True, indent=4))
+PARENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.pardir)
+PARAM_DIR = os.path.join(PARENT_DIR, 'testData')
+
+with open(os.path.join(PARAM_DIR, 'test_krige2d.par'), 'w') as fout:
+    fout.write(json.dumps(PARAMS, sort_keys=True, indent=4))

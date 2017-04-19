@@ -2,11 +2,12 @@
 """
 Created on Sun Nov 06 18:19:28 2016
 """
-import json
-
 __author__ = "yuhao"
 
-params = {
+import os
+import json
+
+PARAMS = {
     'datafl': 'testData/test.gslib',
     'icolx': 1,
     'icoly': 2,
@@ -33,5 +34,8 @@ params = {
     'ivtype': [1, 3, 1]
 }
 
-with open('testData/xihuSmall_sparse_gamv.par', 'w') as fout:
-    fout.write(json.dumps(params, sort_keys=True, indent=4))
+PARENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.pardir)
+PARAM_DIR = os.path.join(PARENT_DIR, 'testData')
+
+with open(os.path.join(PARAM_DIR, 'xihuSmall_sparse_gamv.par'), 'w') as fout:
+    fout.write(json.dumps(PARAMS, sort_keys=True, indent=4))

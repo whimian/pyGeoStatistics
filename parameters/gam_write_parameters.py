@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Nov 03 20:53:02 2016
-
-@author: yuhao
 """
+__author__ = "yuhao"
 
+import os
 import json
 
-params = {
+PARAMS = {
     'datafl': 'testData/xihu_sparse.gslib',
     'nvar': 1,
     'ivar': [1, 2],
@@ -35,8 +35,9 @@ params = {
     'ivhead': [1, 1, 2, 2, 1],
     'ivtype': [1, 3, 1, 3, 9]
     }
-with open('xihuSmall_sparse_gam.par', 'w') as fout:
-    fout.write(json.dumps(params, sort_keys=True, indent=4))
 
-#with open('abc.txt', 'r') as fin:
-#    kkk = json.load(fin)
+PARENT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.pardir)
+PARAM_DIR = os.path.join(PARENT_DIR, 'testData')
+
+with open(os.path.join(PARAM_DIR, 'xihuSmall_sparse_gam.par'), 'w') as fout:
+    fout.write(json.dumps(PARAMS, sort_keys=True, indent=4))
