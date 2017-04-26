@@ -1,10 +1,32 @@
 # pyGeoStatistics
 
-A collection of python routines and jupyter notebooks for geostatistics,
+A collection of python routines (accelerated with [Numba](https://github.com/numba/numba))
+and jupyter notebooks for geostatistics,
 which is immensely inspired by gslib (in Fortran).
 
-**Caution:** its development just started, hence super buggy.
+# Usage
 
+Every routine reads its parameters from a parameter file written in `json`.
+All parameters including input/output file path are stored in these parameter
+files.
+
+I've created scripts that assist in creating parameter files, they could be
+found in `\parameters` folder.
+
+I tried to adhere to the naming convention of `gslib` when it comes to parameter
+names.
+
+Markdown files describing parameters needed for each routine are in
+`\gslib_help`.
+
+## Example:
+
+```Python
+from pygeostatistics import Sgsim
+
+sgsimulator = Sgsim("testData/test_sgsim.par")
+sgsimulator.simulate()
+```
 # Routines
 
 - `eda.py`: exploratory data anaylysis.
@@ -31,12 +53,16 @@ which is immensely inspired by gslib (in Fortran).
     - Kriging with External drift
     - SK with non-stationary drift
 
-- ['sgsim.py'](#sgsimpy): Sequential Gaussian Simulation.
+- [`sgsim.py`](#sequential-gaussian-simulation-sgsimpy): Sequential Gaussian Simulation.
 
 # Other Utilities
 
 - `super_block.py`: Class for performing super block search used in kriging.
     - used in `krige3d.py`
+    - used in `sgsim.py`
+
+- `normal_score_transform.py`: Class for NST used in Gaussian Simulation.
+    - used in `sgsim.py`
 
 # Normal Score Transform (nst.py)
 
@@ -76,7 +102,8 @@ and two kinds of additional functionalities:
 2. kriging the trend
     - set `itrend = True`
 
-*A detailed mathematical explanation of kriging could be found in [kriging.ipynb](kriging.ipynb)*
+*A detailed mathematical explanation of kriging could be found in [kriging.ipynb](notebooks/kriging.ipynb)*
+
 ## Validation
 
 Two validation methods are supported in krige3d, which are cross-validation
