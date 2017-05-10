@@ -1,5 +1,7 @@
 # pyGeoStatistics
 
+![](https://img.shields.io/badge/status-alpha-green.svg)
+
 A collection of python routines (accelerated with [Numba](https://github.com/numba/numba))
 and jupyter notebooks for geostatistics,
 which is immensely inspired by gslib (in Fortran).
@@ -7,7 +9,7 @@ which is immensely inspired by gslib (in Fortran).
 # Usage
 
 Every routine reads its parameters from a parameter file written in `json`.
-All parameters including input/output file path are stored in these parameter
+All parameters including input/output file path need to be specified in these parameter
 files.
 
 I've created scripts that assist in creating parameter files, they could be
