@@ -6,7 +6,7 @@ Created on Tue Dec 6 2016
 """
 from __future__ import division, print_function, absolute_import
 import json
-from itertools import izip, product
+from itertools import product
 import time
 from collections import namedtuple
 import numpy as np

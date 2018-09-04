@@ -9,7 +9,7 @@ import json
 import numpy as np
 from scipy import linalg
 import matplotlib.pyplot as plt
-from itertools import izip, product
+from itertools import product
 import time
 
 __author__ = "yuhao"
@@ -112,7 +112,7 @@ class Krige2d():
     def _max_covariance(self):
         PMX = 9999.0  # max value used for power model
         self.maxcov = self.c0
-        for kind, contri in izip(self.it, self.cc):
+        for kind, contri in zip(self.it, self.cc):
             if kind == 4:
                 self.maxcov += PMX
             else:
@@ -128,7 +128,7 @@ class Krige2d():
             return self.maxcov
         # for non-zero distance
         cova = 0.0
-        for iss in xrange(self.nst):
+        for iss in range(self.nst):
             dx1 = dx*self.rotmat[0, iss] + dy*self.rotmat[1, iss]
             dy1 = (dx*self.rotmat[2, iss] + dy*self.rotmat[3, iss]) / \
                   self.anis[iss]
@@ -179,8 +179,8 @@ class Krige2d():
                 self._block_covariance = self.unbias
             else:  # block kriging
                 cov = list()
-                for x1, y1 in izip(self.xdb, self.ydb):
-                    for x2, y2 in izip(self.xdb, self.ydb):
+                for x1, y1 in zip(self.xdb, self.ydb):
+                    for x2, y2 in zip(self.xdb, self.ydb):
                         cov.append(self._cova2(x1, y1, x2, y2))
                 cov = np.array(cov).reshape((self.ndb, self.ndb))
                 cov[np.diag_indices_from(cov)] -= self.c0
@@ -261,7 +261,7 @@ class Krige2d():
         dist = list()
         nums = list()
         # Scan all the samples:
-        for idd in xrange(self.vr.shape[0]):
+        for idd in range(self.vr.shape[0]):
             dx = self.vr['x'][idd] - xloc
             dy = self.vr['y'][idd] - yloc
             h2 = dx*dx + dy*dy
@@ -301,7 +301,7 @@ class Krige2d():
         else:  # block kriging
             right = 0.0
             # cb_list = list()
-            for i in xrange(self.ndb):
+            for i in range(self.ndb):
                 right = self._cova2(xx, yy, self.xdb[i], self.ydb[i])
                 dx = xx - self.xdb[i]
                 dy = yy - self.ydb[i]
@@ -332,7 +332,7 @@ class Krige2d():
 
         # Establish left hand side covariance matrix:
         left = np.full((neq, neq), np.nan)
-        for i, j in product(xrange(na), xrange(na)):
+        for i, j in product(range(na), range(na)):
             if np.isnan(left[j, i]):
                 left[i, j] = self._cova2(xa[i], ya[i], xa[j], ya[j])
             else:
@@ -341,14 +341,14 @@ class Krige2d():
         # Establish the Right Hand Side Covariance:
         right = list()
 
-        for j in xrange(na):
+        for j in range(na):
             xx = xa[j] - xloc
             yy = ya[j] - yloc
             if not self.block_kriging:
                 cb = self._cova2(xx, yy, self.xdb[0], self.ydb[0])
             else:
                 cb = 0.0
-                for i in xrange(self.ndb):
+                for i in range(self.ndb):
                     cb += self._cova2(xx, yy, self.xdb[i], self.ydb[i])
                     dx = xx - self.xdb[i]
                     dy = yy - self.ydb[i]

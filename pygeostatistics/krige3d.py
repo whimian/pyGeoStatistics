@@ -14,7 +14,7 @@ __author__ = "yuhao"
 import json
 import time
 from collections import namedtuple
-from itertools import izip, product
+from itertools import product
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -321,7 +321,7 @@ class Krige3d(object):
         self.estimation = np.full((nloop,), np.nan)
         self.estimation_variance = np.full((nloop,), np.nan)
         # MAIN LOOP OVER ALL THE BLOCKS IN THE GRID:
-        for index in xrange(nloop):
+        for index in range(nloop):
             if self.koption == 0:
                 self.iz = index // nxy
                 self.iy = (index - self.iz * nxy) // self.nx
@@ -375,7 +375,7 @@ class Krige3d(object):
             vra = list()
             vea = list()  # colocated external drift value
             na = 0
-            for i in xrange(self.searcher.nclose):
+            for i in range(self.searcher.nclose):
                 ind = self.searcher.close_samples[i]
                 accept = True
                 if self.koption != 0 and \
@@ -462,7 +462,7 @@ class Krige3d(object):
                 self.nst, self.it, self.cc, self.aa_hmax)
         else:
             right = 0
-            for i in xrange(self.ndb):
+            for i in range(self.ndb):
                 # cov = self._cova3((xa[0], ya[0], za[0]),
                 #                   (self.xdb[i], self.ydb[i], self.zdb[i]))
                 cov = cova3(
@@ -643,8 +643,8 @@ class Krige3d(object):
                 self._block_covariance = self.unbias
             else:
                 cov = list()
-                for x1, y1, z1 in izip(self.xdb, self.ydb, self.zdb):
-                    for x2, y2, z2 in izip(self.xdb, self.ydb, self.zdb):
+                for x1, y1, z1 in zip(self.xdb, self.ydb, self.zdb):
+                    for x2, y2, z2 in zip(self.xdb, self.ydb, self.zdb):
                         # cov.append(self._cova3((x1, y1, z1), (x2, y2, z2)))
                         cov.append(cova3(
                             (x1, y1, z1), (x2, y2, z2),
@@ -671,7 +671,7 @@ class Krige3d(object):
         """
         if self._mdt is None:
             self._mdt = 1
-            for i in xrange(9):
+            for i in range(9):
                 if self.ktype == 0 or self.ktype == 2:
                     self.idrift[i] = 0
                 self._mdt += self.idrift[i]
@@ -735,7 +735,7 @@ class Krige3d(object):
         for power model covariance):
         '''
         self.maxcov = self.c0
-        for ist in xrange(self.nst):
+        for ist in range(self.nst):
             if self.it[ist] == 4:
                 self.maxcov += self.const.PMX
             else:
@@ -771,9 +771,9 @@ def left_side(xa, ya, za, neq, unbias, rotmat, maxcov, nst, it, cc, aa_hmax):
     na = len(xa)
     left = np.full((neq, neq), np.nan)
     # fill the kriging matrix:
-    # for i, j in product(xrange(na), xrange(na)):
-    for i in xrange(na):
-        for j in xrange(na):
+    # for i, j in product(range(na), range(na)):
+    for i in range(na):
+        for j in range(na):
             if np.isnan(left[j, i]):
                 # left[i, j] = self._cova3((xa[i], ya[i], za[i]),
                 #                          (xa[j], ya[j], za[j]))
@@ -794,7 +794,7 @@ def right_side(xa, ya, za, xdb, ydb, zdb, neq, unbias, rotmat, maxcov,
     na = len(xa)
     ndb = len(xdb)
     right = np.full((neq,), np.nan)
-    for i in xrange(na):
+    for i in range(na):
         if ndb <= 1:
             cb = cova3(
                 (xa[i], ya[i], za[i]),
@@ -803,7 +803,7 @@ def right_side(xa, ya, za, xdb, ydb, zdb, neq, unbias, rotmat, maxcov,
                 it, cc, aa_hmax)
         else:
             cb = 0
-            for j in xrange(ndb):
+            for j in range(ndb):
                 cov = cova3(
                     (xa[i], ya[i], za[i]),
                     (xdb[j], ydb[j], zdb[j]),
@@ -849,7 +849,7 @@ def sqdist(point1, point2, rotmat):
     dy = point1[1] - point2[1]
     dz = point1[2] - point2[2]
     sqdist = 0.0
-    for i in xrange(3):
+    for i in range(3):
         cont = rotmat[i, 0] * dx + \
                 rotmat[i, 1] * dy + \
                 rotmat[i, 2] * dz
@@ -876,7 +876,7 @@ def cova3(point1, point2, rotmat, maxcov, nst, it, cc, aa_hmax):
         return cova
     # loop over all structures
     cova = 0
-    for ist in xrange(nst):
+    for ist in range(nst):
         if ist != 0:
             hsqd = sqdist(point1, point2, rotmat[ist])
         h = np.sqrt(hsqd)

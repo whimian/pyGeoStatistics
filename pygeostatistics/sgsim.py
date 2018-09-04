@@ -12,7 +12,7 @@ import json
 import os
 import time
 from collections import namedtuple
-from itertools import izip, product
+from itertools import product
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -454,9 +454,9 @@ class Sgsim(object):
             (2 * self.nctx + 1, 2 * self.ncty + 1, 2 * self.nctz + 1), np.nan)
         tmp = list()
         order = list()
-        for i, j, k in product(xrange(-self.nctx, self.nctx+1),
-                               xrange(-self.ncty, self.ncty+1),
-                               xrange(-self.nctz, self.nctz+1)):
+        for i, j, k in product(range(-self.nctx, self.nctx+1),
+                               range(-self.ncty, self.ncty+1),
+                               range(-self.nctz, self.nctz+1)):
             xx = i * self.xsiz
             ic = self.nctx + i
             yy = j * self.ysiz
@@ -610,7 +610,7 @@ class Sgsim(object):
         for power model covariance):
         '''
         self.maxcov = self.c0
-        for ist in xrange(self.nst):
+        for ist in range(self.nst):
             if self.it[ist] == 4:
                 self.maxcov += self.const.PMX
             else:
@@ -634,7 +634,7 @@ class Sgsim(object):
         nxy = self.nx * self.ny
         nx = self.nx
         # doing `nsim` times of simulation
-        for isim in xrange(self.nsim):
+        for isim in range(self.nsim):
             if isim > 0 and self.ktype == 4:
                 pass
             # random path for this realization
@@ -643,12 +643,12 @@ class Sgsim(object):
 
             # multiple grid search, 4 is arbitrary
             if self.mults is True:
-                for imult in xrange(self.nmult):
+                for imult in range(self.nmult):
                     nnz = max(1, self.nz / (imult * 4))
                     nny = max(1, self.ny / (imult * 4))
                     nnx = max(1, self.nx / (imult * 4))
-                    for iz, iy, ix in product(xrange(nnz), xrange(nny),
-                                              xrange(nnx)):
+                    for iz, iy, ix in product(range(nnz), range(nny),
+                                              range(nnx)):
                         jz = iz * imult * 4
                         jy = iy * imult * 4
                         jx = ix * imult * 4
@@ -675,7 +675,7 @@ class Sgsim(object):
                    np.abs(zz - self.z)
             nd = self.x.shape[0]
 
-            for idx in xrange(nd):
+            for idx in range(nd):
                 # assign this data to the node unless there is a closer data.
                 if self.sstrat == 1:
                     if sim[ind[idx]] >= 0:
@@ -695,7 +695,7 @@ class Sgsim(object):
                     sim[ind[idx]] = 10 * UNEST
 
             # enter data values into the simulated grid:
-            for i in xrange(nxyz):
+            for i in range(nxyz):
                 idx = sim[i]
                 if idx > 0:
                     sim[i] = self.vr[idx]
@@ -704,7 +704,7 @@ class Sgsim(object):
             ts = 0
             percent_od = 0
             # MAIN LOOP
-            for igrid in xrange(nxyz):
+            for igrid in range(nxyz):
                 index = order[igrid]
                 if sim[index] > UNEST + EPSILON or sim[index] < UNEST * 2:
                     continue
@@ -753,7 +753,7 @@ class Sgsim(object):
 
             # do we need to reassign the data to the grid nodes?
             if self.sstrat == 0:
-                for idx in xrange(nd):
+                for idx in range(nd):
                     if test[idx] <= TINY:
                         sim[ind[idx]] = self.vr[idx]
             # back transform each value and write results:
@@ -859,7 +859,7 @@ def sqdist(point1, point2, rotmat):
     dy = point1[1] - point2[1]
     dz = point1[2] - point2[2]
     sqdist = 0.0
-    for i in xrange(3):
+    for i in range(3):
         cont = rotmat[i, 0] * dx + \
                 rotmat[i, 1] * dy + \
                 rotmat[i, 2] * dz
@@ -886,7 +886,7 @@ def cova3(point1, point2, rotmat, maxcov, nst, it, cc, aa_hmax):
         return cova
     # loop over all structures
     cova = 0
-    for ist in xrange(nst):
+    for ist in range(nst):
         if ist != 0:
             # hsqd = self._sqdist(point1, point2, self.rotmat[ist])
             hsqd = sqdist(point1, point2, rotmat[ist])
@@ -924,7 +924,7 @@ def search(ix, iy, iz,
     cnodev = []
     ninoct = np.zeros((8,))
 
-    for il in xrange(0, nlookup):
+    for il in range(0, nlookup):
         if ncnode == nodmax:
             return
         # calculate location of point in simulation grid
@@ -990,7 +990,7 @@ def krige_matrix(lktype, ix, iy, iz,
                  covtab):
     left = np.full((neq, neq), np.nan)
     right = np.full((neq,), np.nan)
-    for j in xrange(na):
+    for j in range(na):
         # sort out the actual location of point "j"
         # if j <= self.nclose:
         if j < nclose:
@@ -1019,7 +1019,7 @@ def krige_matrix(lktype, ix, iy, iz,
             #     vrea[j] = lvm[index]
             # if lktype == 2:
             #     vra[j] -= vrea[j]
-        for i in xrange(j+1):
+        for i in range(j+1):
             if i < nclose:
                 index = close_samples[i]
                 x2 = x[index]
@@ -1085,9 +1085,9 @@ def krige_matrix(lktype, ix, iy, iz,
             else:
                 right[i] = covtab[ii, jj, kk]
     # fill void elements of left matrix:
-    # for i, j in product(xrange(na), xrange(na)):
-    for i in xrange(na):
-        for j in xrange(na):
+    # for i, j in product(range(na), range(na)):
+    for i in range(na):
+        for j in range(na):
             if np.isnan(left[i, j]):
                 left[i, j] = left[j, i]
 

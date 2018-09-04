@@ -123,10 +123,10 @@ class Gamv():
 
 #        tail_data = list()
 #        head_data = list()
-#        for i in xrange(self.ndir):
+#        for i in range(self.ndir):
 #            tail_data.append(list())
 #            head_data.append(list())
-#            for j in xrange(self.nlag+2):
+#            for j in range(self.nlag+2):
 #                tail_data[i].append(list())
 #                head_data[i].append(list())
         # calculate the value interval of each lag
@@ -176,8 +176,8 @@ class Gamv():
         dismxs = ((self.nlag + 0.5 - np.finfo('float').eps) * self.xlag)**2
         num_of_data = int(self.vr.shape[0])
         ijlist = list()
-        for i in xrange(num_of_data - 1):
-            for j in xrange(i+1, num_of_data):
+        for i in range(num_of_data - 1):
+            for j in range(i+1, num_of_data):
                 ijlist.append((i, j))
         for ijtuple in ijlist:
             i, j = ijtuple
@@ -205,7 +205,7 @@ class Gamv():
                 # print("skip pair {},{} for no lag".format(i, j))
                 continue  # skip if cannot find which lag
 
-            for idir in xrange(self.ndir):
+            for idir in range(self.ndir):
                 omni = self.atol[idir] >= 90.0
                 # check for an acceptable azimuth angle:
                 dxy = np.sqrt(max(dx**2 + dy**2, 0.0))

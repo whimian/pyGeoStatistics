@@ -64,14 +64,14 @@ class Gam():
             name = fin.readline()
             ncols = int(fin.readline())
             column_name = list()
-            for i in xrange(ncols):
+            for i in range(ncols):
                 column_name.append(fin.readline().rstrip('\n'))
             data_dtype = np.dtype({
                 'names': column_name,
                 'formats': ['f8'] * ncols})
             for line in fin:
                 data = line.split()
-                for i in xrange(ncols):
+                for i in range(ncols):
                     data[i] = float(data[i])
                 data = tuple(data)
                 data_list.append(data)
@@ -130,10 +130,10 @@ class Gam():
 
         head_data = list()
         tail_data = list()
-        for i in xrange(self.ndir):
+        for i in range(self.ndir):
             head_data.append(list())
             tail_data.append(list())
-            for j in xrange(self.nlag):
+            for j in range(self.nlag):
                 head_data[i].append(list())
                 tail_data[i].append(list())
         # loop over all points on the grid

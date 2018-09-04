@@ -5,7 +5,7 @@ class for performing Super Block Search
 Created on Tue Nov 22 2016
 """
 from __future__ import division, print_function
-from itertools import izip, product
+from itertools import product
 import numpy as np
 from numba import jit
 
@@ -126,7 +126,7 @@ class SuperBlockSearcher(object):
         # self.super_block = np.full((self.nxsup, self.nysup, self.nzsup), [])
         temp = np.zeros_like(self.vr['x'])
         self.nisb = np.zeros((self.nxsup*self.nysup*self.nzsup,))
-        for idx, (ix, iy, iz) in enumerate(izip(x_index, y_index, z_index)):
+        for idx, (ix, iy, iz) in enumerate(zip(x_index, y_index, z_index)):
             ii = super_flat_index(ix, iy, iz, self.nxsup, self.nysup)
             temp[idx] = ii
             self.nisb[ii] += 1
@@ -189,7 +189,7 @@ class SuperBlockSearcher(object):
             # pick up the closes samples in each octant
             nt = self.noct * 8
             na = 0
-            for j in xrange(self.nclose):
+            for j in range(self.nclose):
                 i = int(self.close_samples[j])
                 h = distance[j]
                 dx = self.vr['x'][i] - xloc
@@ -231,12 +231,12 @@ def func_pickup(nxsup, nysup, nzsup,
     ixsbtosr = []
     iysbtosr = []
     izsbtosr = []
-    # for i, j, k in product(xrange(-(nxsup-1), nxsup),
-    #                        xrange(-(nysup-1), nysup),
-    #                        xrange(-(nzsup-1), nzsup)):
-    for i in xrange(-(nxsup-1), nxsup):
-        for j in xrange(-(nysup-1), nysup):
-            for k in xrange(-(nzsup-1), nzsup):
+    # for i, j, k in product(range(-(nxsup-1), nxsup),
+    #                        range(-(nysup-1), nysup),
+    #                        range(-(nzsup-1), nzsup)):
+    for i in range(-(nxsup-1), nxsup):
+        for j in range(-(nysup-1), nysup):
+            for k in range(-(nzsup-1), nzsup):
                 xo = i * xsizsup
                 yo = j * ysizsup
                 zo = k * zsizsup
@@ -275,7 +275,7 @@ def func_search(xloc, yloc, zloc,
     close_samples = []
     distance = []
     # loop over all super blocks
-    for isup in xrange(nsbtosr):
+    for isup in range(nsbtosr):
         ixsup = ix + ixsbtosr[isup]
         iysup = iy + iysbtosr[isup]
         izsup = iz + izsbtosr[isup]
@@ -294,7 +294,7 @@ def func_search(xloc, yloc, zloc,
             nums = nisb[ii] - nisb[ii - 1]
             i = nisb[ii - 1]
         # loop over all the data within this super block
-        for k in xrange(0, nums):
+        for k in range(0, nums):
             # hsqd = self.sqdist((xloc, yloc, zloc),
             #                    (self.vr['x'][i], self.vr['y'][i],
             #                     self.vr['z'][i]))
@@ -370,7 +370,7 @@ def sqdist(point1, point2, rotmat):
     dy = point1[1] - point2[1]
     dz = point1[2] - point2[2]
     sqdist = 0.0
-    for i in xrange(3):
+    for i in range(3):
         cont = rotmat[i, 0] * dx + \
                rotmat[i, 1] * dy + \
                rotmat[i, 2] * dz
