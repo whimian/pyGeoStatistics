@@ -3,8 +3,10 @@ Installation
 ============
 
 |
+
 Denpendencies
 =============
+
 - Python 3.6
 - NumPy 1.8 (or greater)
 - SciPy 0.13 (or greater)

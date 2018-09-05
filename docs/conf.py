@@ -121,7 +121,7 @@ html_theme_options = dict(
     navbar_links = [
         # ("Cookbook", "cookbook/index"),
         # ("API", "api/api")
-        ("Basics", "basics/index")
+        # ("Basics", "basics/index")
     ]
 )
 

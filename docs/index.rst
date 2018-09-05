@@ -7,15 +7,8 @@
 pyGeoStatistics
 ===============
 
-
-.. toctree::
-    :maxdepth: 1
-    :caption: pyGeoStatistics:
-    :hidden:
-
-    install
-    basics/index
-
+Overview
+========
 
 A collection of python routines (accelerated with Numba) and jupyter notebooks
 for geostatistics, which is immensely inspired by gslib (in Fortran).
@@ -40,7 +33,35 @@ Example:
     sgsimulator = Sgsim("testData/test_sgsim.par")
     sgsimulator.simulate()
 
-Getting Started
-===============
-* :doc:`install`
-* :doc:`basics/index`
+Contribute
+==========
+- Issue Tracker: https://github.com/whimian/pyGeoStatistics/issues
+
+- Source Code: https://github.com/whimian/pyGeoStatistics
+
+License
+=======
+`MIT <https://github.com/whimian/pyGeoStatistics/blob/master/LICENSE>`_
+
+.. toctree::
+    :maxdepth: 1
+    :caption: Getting Started
+    :hidden:
+
+    install
+
+.. toctree::
+  :maxdepth: 1
+  :caption: Geostatistics Basics
+  :hidden:
+
+  basics/kriging
+  basics/cokriging
+  basics/simulation
+
+.. toctree::
+  :maxdepth: 1
+  :caption: Tutorials
+  :hidden:
+
+  tutorials/eda
