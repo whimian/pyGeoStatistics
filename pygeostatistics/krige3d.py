@@ -22,6 +22,7 @@ from numba import jit
 from scipy import linalg
 
 from .super_block import SuperBlockSearcher
+from .gslib_reader import SpatialData
 
 
 class Krige3d(object):
@@ -32,8 +33,9 @@ class Krige3d(object):
         self.param_file = param_file
         self._read_params()
         self._check_params()
-        self.property_name = None
-        self.vr = None
+        self.data = SpatialData(self.datafl)
+        self.property_name = self.data.property_name
+        self.vr = self.data.vr
         self.rotmat = None
         self.estimation = None
         self.estimation_variance = None
@@ -42,7 +44,7 @@ class Krige3d(object):
         self.ydb = None
         self.zdb = None
 
-        self._2d = False
+        self._2d = self.data._2d
         self.searcher = None
         self.const = None
 
@@ -156,29 +158,6 @@ class Krige3d(object):
         for item in self.idrift:
             if not isinstance(item, bool):
                 raise ValueError("Invalid drift term {}".format(item))
-
-    def read_data(self):
-        "Read a simplified Geo-EAS formatted file."
-        data_list = None
-        with open(self.datafl, 'r') as fin:
-            data_list = fin.readlines()
-        name = data_list[0].strip()
-        ncols = int(data_list[1].strip())
-        column_name = [item.strip() for item in data_list[2: ncols+2]]
-        self.property_name = [item for item in column_name
-                              if item not in ['x', 'y', 'z']]
-        if 'z' not in column_name:
-            self._2d = True
-            column_name.append('z')
-            data_list = [tuple(item.strip().split() + ['0'])
-                         for item in data_list[ncols+2:]]
-        else:
-            data_list = [tuple(item.strip().split())
-                         for item in data_list[ncols+2:]]
-        data_dtype = np.dtype({
-            'names': column_name,
-            'formats': ['f8'] * len(column_name)})
-        self.vr = np.array(data_list, dtype=data_dtype)
 
     def _preprocess(self):
         """create variables needed before performing kriging"""
@@ -727,6 +706,7 @@ class Krige3d(object):
                    (-0.5 * self.ysiz + 0.5 * ydis)
         self.zdb = np.arange(0, self.nzdis, 1) * zdis + \
                    (-0.5 * self.zsiz + 0.5 * zdis)
+
 
 
     def _max_covariance(self):
