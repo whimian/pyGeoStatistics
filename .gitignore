@@ -94,3 +94,6 @@ ENV/
 
 # Numpy data
 *.npy
+
+# pytest
+.pytest_cache/
