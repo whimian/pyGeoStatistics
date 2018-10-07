@@ -101,3 +101,25 @@ class SpatialData(object):
         num = self.vr.shape[0]
         return pdist(np.concatenate((self.vr['x'].reshape((num, 1)),
                                      self.vr['y'].reshape((num, 1))), axis=1))
+
+    @property
+    def summary(self):
+        return (
+            "Summary\n"
+            "-------\n"
+            "Number of Data: {}\n"
+            "Mean: {}\n"
+            "Variance: {}\n"
+            "Minimum: {}\n"
+            "Lower Quartile: {}\n"
+            "Median: {}\n"
+            "Upper Quartile: {}\n"
+            "Maximum: {}\n").format(
+                self.num,
+                self.mean,
+                self.variance,
+                self.minimum,
+                self.lower_quartile,
+                self.meadian,
+                self.upper_quartile,
+                self.maximum)
