@@ -5,13 +5,10 @@ Normal Score Transform
 Created on Tue Dec 6 2016
 """
 from __future__ import division, print_function, absolute_import
-import json
-from itertools import product
-import time
-from collections import namedtuple
+
 import numpy as np
 from numba import jit
-from scipy import linalg, interpolate
+from scipy import interpolate
 
 
 class NormalScoreTransform(object):
@@ -32,7 +29,7 @@ class NormalScoreTransform(object):
         ltpar: float
             parameter for lower tail option
         utail: int
-            potion to handle values larger than maximum data, upper tail
+            option to handle values larger than maximum data, upper tail
         utpar: float
             parameter for upper tail option
         """
@@ -83,11 +80,11 @@ class NormalScoreTransform(object):
             fill_value="extrapolate")
 
     def transform(self, values):
-        "transform data to nore score"
+        "transform data to normal score"
         return self.forward_func(values)
 
     def back_transform(self, scores):
-        "transform nore score back to orginal data"
+        "transform normal score back to orginal data"
         values = np.full_like(scores, np.nan)
 
         lo_value = self.transform_table['value'][0]
@@ -118,7 +115,7 @@ class NormalScoreTransform(object):
         upper_mask = scores > up_score
         upper_scores = scores[upper_mask]
         temp = list()
-        for sc in up_score:
+        for sc in upper_scores:
             backtr = up_value
             cdfhi = gcum(up_score)
             cdfbt = gcum(sc)  # cdf value of the score to be back-transformed
