@@ -9,6 +9,7 @@ Denpendencies
 
 - Python 3.6
 - NumPy 1.8 (or greater)
+- Numba
 - SciPy 0.13 (or greater)
 - matplotlib 1.3 (or greater)
 

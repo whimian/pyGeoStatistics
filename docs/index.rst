@@ -64,4 +64,5 @@ License
   :caption: Tutorials
   :hidden:
 
-  tutorials/eda
+  tutorials/EDA
+  tutorials/NST

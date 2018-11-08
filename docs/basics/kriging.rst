@@ -4,8 +4,8 @@ Kriging
 Intro
 -----
 
-Kriging is **"a collection of gneralized linear regression techniques for "**
-**"minimizing an estimation variance defined from a priori model for a convariance".**
+Kriging is **"a collection of gneralized linear regression techniques for
+minimizing an estimation variance defined from a priori model for a convariance".**
 
 Consider the estimate of an unsampled value :math:`z(\mathbf{u})` from
 neighboring data values :math:`z({\mathbf{u}}_{\alpha}),\alpha=1,\dots,n`.
@@ -237,8 +237,8 @@ This leads to the set of L+1 conditions:
     \sum\limits_{\alpha}{\lambda}_{\alpha}{f}_{\alpha}^{\mathscr{l}}={f}_{0}^{\mathscr{l}}, \quad \mathscr{l}=0,1,\dots,L
 
 that Matheron(1969) called universality conditions, hence the name universal
-kriging (UK). *They express that the estimator :math:`{Z}^{*}` is unbiased for *
-*all values of :math:`{\alpha}_{\mathscr{l}}`*.
+kriging (UK). They express that the estimator :math:`{Z}^{*}` is unbiased for
+all values of :math:`{\alpha}_{\mathscr{l}}`.
 
 The Universal Kriging System can be expressed as:
 
@@ -297,7 +297,7 @@ where :math:`\boldsymbol{\Sigma}`, :math:`\boldsymbol{\lambda}` and
     {f}_{0}^{L}
     \end{bmatrix}
 
-Those :math:`1`s in :math:`\mathbf{F}` correspond to OK.
+Those :math:`1` s in :math:`\mathbf{F}` correspond to OK.
 
 
 Kriging with an External Drift
