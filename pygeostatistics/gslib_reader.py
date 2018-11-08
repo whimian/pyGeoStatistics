@@ -11,6 +11,7 @@ __author__ = "yuhao"
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist
+from mpl_toolkits.mplot3d import Axes3D
 
 
 class SpatialData(object):
@@ -107,7 +108,7 @@ class SpatialData(object):
         return (
             "Summary\n"
             "-------\n"
-            "Number of Data: {}\n"
+            "Number of Points: {}\n"
             "Mean: {}\n"
             "Variance: {}\n"
             "Minimum: {}\n"
@@ -123,3 +124,26 @@ class SpatialData(object):
                 self.meadian,
                 self.upper_quartile,
                 self.maximum)
+
+    def scatter(self, ax, prop=None):
+        """
+        Plot scatter of data points on given axis
+
+        Parameters
+        ----------
+        ax : AxesSubplot or Axes3DSubplot
+            axis on which the scatter plot is drawn
+        prop : str
+            property to display with colormap
+        """
+        sc = None
+        prop = self.property_name[0] if prop is None else prop
+
+        if not self._2d and isinstance(ax, Axes3D):
+            sc = ax.scatter(
+                self.vr['x'], self.vr['y'], self.vr['z'],
+                c=prop)
+        else:
+            sc = ax.scatter(
+                self.vr['x'], self.vr['y'], c=prop)
+        return sc
