@@ -8,19 +8,21 @@ from __future__ import absolute_import, division, print_function
 
 __author__ = "yuhao"
 
-import json
+# import json
 import os
 import time
 from collections import namedtuple
 from itertools import product
 
+import yaml
 import matplotlib.pyplot as plt
 import numpy as np
 from numba import jit
 from scipy import interpolate, linalg
 
-from .normal_score_transform import NormalScoreTransform, gauinv
-from .super_block import SuperBlockSearcher
+from pygeostatistics.normal_score_transform import NormalScoreTransform, gauinv
+from pygeostatistics.super_block import SuperBlockSearcher
+from pygeostatistics.yaml_patch import loader_patched
 
 
 class Sgsim(object):
@@ -57,8 +59,8 @@ class Sgsim(object):
         self.icolwt = None
 
     def _read_params(self):
-        with open(self.param_file) as fin:
-            params = json.load(fin)
+        with open(self.param_file, 'r') as fin:
+            params = yaml.load(fin, Loader=loader_patched())
             # data file definition
             self.datafl = params['datafl']  #: 'testData/test.gslib',
             # self.idhl = None  # ????

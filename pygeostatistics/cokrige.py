@@ -5,14 +5,16 @@ A cokriging program for a points or blocks on a regular grid.
 Created on Fri Dec 2 2016
 """
 from __future__ import division, print_function, absolute_import
-import json
+import yaml
 from itertools import product
 import time
 from collections import namedtuple
 import numpy as np
 from scipy import linalg
 import matplotlib.pyplot as plt
-from super_block import SuperBlockSearcher
+
+from pygeostatistics.yaml_patch import loader_patched
+from pygeostatistics.super_block import SuperBlockSearcher
 
 __author__ = "yuhao"
 
@@ -54,8 +56,8 @@ class Cokrige(object):
         self.aa_vert = list()
 
     def _read_params(self):
-        with open(self.param_file) as fin:
-            params = json.load(fin)
+        with open(self.param_file, "r") as fin:
+            params = yaml.load(fin, Loader=loader_patched())
             # data file definition
             self.datafl = params['datafl']  #: 'testData/test.gslib',
             self.nvr = params['nvar']  # number (primary + secondary)

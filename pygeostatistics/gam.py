@@ -4,12 +4,13 @@ Compute Variogram on regularly spaced data
 
 Created on Tue Nov 03 2016
 """
-from __future__ import division, print_function
-import json
+__author__ = "yuhao"
+
+import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 
-__author__ = "yuhao"
+from pygeostatistics.yaml_patch import loader_patched
 
 
 class Gam():
@@ -25,8 +26,8 @@ class Gam():
         self.variance = None
 
     def _read_params(self):
-        with open(self.param_file) as fin:
-            params = json.load(fin)
+        with open(self.param_file, "r") as fin:
+            params = yaml.load(fin, Loader=loader_patched())
             self.datafl = params['datafl']
             self.nvar = params['nvar']
             #   'ivar'

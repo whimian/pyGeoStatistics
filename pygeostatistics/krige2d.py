@@ -4,15 +4,17 @@ A straightforward 2D kriging program
 
 Created on Fri Nov 11 2016
 """
-from __future__ import division, print_function
-import json
+__author__ = "yuhao"
+
+import yaml
 import numpy as np
 from scipy import linalg
 import matplotlib.pyplot as plt
 from itertools import product
 import time
 
-__author__ = "yuhao"
+from pygeostatistics.yaml_patch import loader_patched
+
 
 class Krige2d():
     def __init__(self, param_file):
@@ -36,7 +38,7 @@ class Krige2d():
 
     def _read_params(self):
         with open(self.param_file) as fin:
-            params = json.load(fin)
+            params = yaml.load(fin, Loader=loader_patched())
             self.datafl = params['datafl']  #: 'testData/test.gslib',
             self.icolx = params['icolx']  #: 1,
             self.icoly = params['icoly']  #: 2,

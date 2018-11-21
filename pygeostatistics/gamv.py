@@ -4,14 +4,14 @@ Compute Variogram on irregularly spaced data
 
 Created on Sun Nov 06 2016
 """
-from __future__ import division, print_function
-import json
+__author__ = "yuhao"
+
+import yaml
 import numpy as np
 import matplotlib.pyplot as plt
-# import pandas as pd
-#from scipy.spatial.distance import pdist, squareform
 
-__author__ = "yuhao"
+from pygeostatistics.yaml_patch import loader_patched
+
 
 class Gamv():
     def __init__(self, param_file):
@@ -30,8 +30,8 @@ class Gamv():
         self.lag_interval = None
 
     def _read_params(self):
-        with open(self.param_file) as fin:
-            params = json.load(fin)
+        with open(self.param_file, "r") as fin:
+            params = yaml.load(fin, Loader=loader_patched())
             self.datafl = params['datafl']
             self.icolx = params['icolx']  #: 1,
             self.icoly = params['icoly']  #: 2,
