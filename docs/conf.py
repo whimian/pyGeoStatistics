@@ -42,7 +42,19 @@ templates_path = ['_templates']
 
 # source_suffix = ['.rst', '.md']
 # source_suffix = '.rst'
-nbsphinx_prompt_width = 0
+
+# nbsphinx_prompt_width = 0
+nbsphinx_prolog = """
+.. raw:: html
+    <style>
+    .nbinput .prompt,
+    .nboutput .prompt {
+        display: none;
+        }
+    </style>
+"""
+
+
 # The master toctree document.
 master_doc = 'index'
 
